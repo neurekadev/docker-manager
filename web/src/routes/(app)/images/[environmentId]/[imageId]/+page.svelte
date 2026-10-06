@@ -116,12 +116,12 @@
 		if (!im) return [];
 		const out: MenuEntry[] = [];
 		if (can(im.actions, 'image.tag'))
-			out.push({ label: 'Tag…', icon: Tag, onSelect: () => host?.request(im, 'tag') });
+			out.push({ label: 'Tag', icon: Tag, onSelect: () => host?.request(im, 'tag') });
 		// Docker Manager's own images are never removed: no entry (the notice says why).
 		if (!im.protection && can(im.actions, 'image.remove')) {
 			if (out.length) out.push({ separator: true });
 			out.push({
-				label: 'Remove…',
+				label: 'Remove',
 				tone: 'danger',
 				onSelect: () => host?.request(im, 'remove')
 			});

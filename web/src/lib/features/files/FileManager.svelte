@@ -797,7 +797,7 @@
 				onSelect: () => download(entries)
 			});
 		if (one && one.type === 'file' && archiveFormat(one.name) && can('extract') && w)
-			out.push({ label: 'Extract…', icon: PackageOpen, onSelect: () => requestExtract(one) });
+			out.push({ label: 'Extract', icon: PackageOpen, onSelect: () => requestExtract(one) });
 		out.push({ separator: true });
 		if (can('copy') && w)
 			out.push({
@@ -827,7 +827,7 @@
 			});
 		if (one && can('move') && w)
 			out.push({
-				label: 'Rename…',
+				label: 'Rename',
 				icon: Pencil,
 				shortcut: 'F2',
 				onSelect: () => rename(one)
@@ -835,20 +835,20 @@
 		if ((can('archive') || can('chmod') || can('chown')) && w) out.push({ separator: true });
 		if (can('archive') && w)
 			out.push({
-				label: 'Create Archive…',
+				label: 'Create Archive',
 				icon: FileArchive,
 				onSelect: () => requestArchive(paths)
 			});
 		if ((can('chmod') || can('chown')) && w)
 			out.push({
-				label: 'Permissions…',
+				label: 'Permissions',
 				icon: KeyRound,
 				onSelect: () => requestPermissions(entries)
 			});
 		if (can('delete') && w) {
 			out.push({ separator: true });
 			out.push({
-				label: 'Delete…',
+				label: 'Delete',
 				icon: Trash2,
 				tone: 'danger',
 				shortcut: mac ? '⌘⌫' : 'Del',

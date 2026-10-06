@@ -110,7 +110,7 @@
 			out.push(
 				{ separator: true },
 				{
-					label: 'Remove…',
+					label: 'Remove',
 					tone: 'danger',
 					onSelect: () =>
 						remover?.request({

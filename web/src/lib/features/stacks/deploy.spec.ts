@@ -16,9 +16,7 @@ describe('deploy outcomes', () => {
 	it('names what runs and what failed', () => {
 		expect(deployTitle('Silo', {})).toBe('Deploy Silo');
 		expect(deployTitle('Silo', { build: true })).toBe('Build and Deploy Silo');
-		expect(deployTitle('Silo', { removeOrphans: true })).toBe(
-			'Deploy Silo and Remove Old Containers'
-		);
+		expect(deployTitle('Silo', { removeOrphans: true })).toBe('Remove Orphans and Deploy Silo');
 		expect(deployTitle('Silo', { pull: true })).toBe('Pull and Deploy Silo');
 		expect(deployFailure('Silo', {})).toBe('Silo was not deployed');
 		expect(deployFailure('Silo', { pull: true })).toBe('Silo was not pulled and deployed');
@@ -158,7 +156,7 @@ describe('drift', () => {
 			{
 				service: 'forgejo-runner-register',
 				orphan: true,
-				text: 'forgejo-runner-register is no longer in the Compose file, but its container is still on the host. “Remove Old Containers” deploys the stack and removes it.'
+				text: 'forgejo-runner-register is no longer in the Compose file, but its container is still on the host. “Remove Orphans and Deploy” removes it and deploys the stack.'
 			},
 			{
 				service: 'web',

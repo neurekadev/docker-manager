@@ -136,20 +136,20 @@
 		if (!readOnly && !restoring && onoperate) {
 			if (!running && canOn(s, 'stack.start'))
 				items.push({
-					label: `Start ${s.name}`,
+					label: 'Start',
 					icon: Play,
 					onSelect: () => onoperate(s.name, 'start')
 				});
 			if (running && canOn(s, 'stack.restart'))
 				items.push({
-					label: `Restart ${s.name}`,
+					label: 'Restart',
 					icon: RotateCw,
 					disabled: !!stack.protection,
 					onSelect: () => onoperate(s.name, 'restart')
 				});
 			if (running && canOn(s, 'stack.stop'))
 				items.push({
-					label: `Stop ${s.name}…`,
+					label: 'Stop',
 					icon: Square,
 					tone: 'danger',
 					disabled: !!stack.protection,
@@ -159,7 +159,7 @@
 		// A deploy of the service: Docker Manager's own stack may (#32).
 		if (!readOnly && !restoring && onrecreate && can('stack.deploy'))
 			items.push({
-				label: `Force Recreate ${s.name}…`,
+				label: 'Force Recreate',
 				icon: RefreshCcw,
 				onSelect: () => onrecreate(s.name)
 			});
@@ -169,7 +169,7 @@
 		if (more && items.length) items.push({ separator: true });
 		if (canOn(s, 'container.logs.read'))
 			items.push({
-				label: `Logs of ${s.name}`,
+				label: 'Logs',
 				icon: ScrollText,
 				href: routes.stackLogs(stack.id, s.name)
 			});

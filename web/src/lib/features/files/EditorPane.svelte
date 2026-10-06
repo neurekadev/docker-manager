@@ -9,7 +9,7 @@
 	// definition is not deployed (with stack.deploy). An external change keeps the unsaved
 	// buffer and shows the conflict banner exactly per the brief:
 	// "<file> changed on disk. Your edits are kept." with Compare, Reload From
-	// Disk, Save As… and Overwrite (confirmed).
+	// Disk, Save As and Overwrite (confirmed).
 	import { useQueryClient } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import Eye from '@lucide/svelte/icons/eye';
@@ -163,7 +163,7 @@
 		if (!t || !canWrite || t.saving || t.status !== 'ready' || t.truncated) return;
 		if (t.conflict) {
 			toast.warn(`${basename(t.path)} changed on disk`, {
-				body: 'Your edits are kept. Choose Compare, Reload From Disk, Save As… or Overwrite first.'
+				body: 'Your edits are kept. Choose Compare, Reload From Disk, Save As or Overwrite first.'
 			});
 			return;
 		}
@@ -414,7 +414,7 @@
 				>
 				{#if canWrite}
 					<Button size="sm" variant="ghost" onclick={() => (saveAsOpen = true)}
-						>Save As…</Button
+						>Save As</Button
 					>
 					<Button
 						size="sm"

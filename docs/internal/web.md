@@ -291,10 +291,10 @@ deploys at once); its menu has "Deploy" and "Pull and Deploy" (one deploy
 with `pull: always`; the menu button's accessible label says "newer
 images are available" when `updateAvailable`) and "Pull" (`pullStack`,
 a `stack.pull` job that deploys nothing), then after a separator
-"Force Recreate…" (a deploy with `forceRecreate: true`: every container is
+"Force Recreate" (a deploy with `forceRecreate: true`: every container is
 replaced even when unchanged; confirmed first with `recreateConsequences`,
 words from `deployTitle`/`deploySuccess`: "Force Recreate", "Recreated")
-and "Deploy and Remove Old Containers…". Stacks whose files on disk have a `build:`
+and "Remove Orphans and Deploy". Stacks whose files on disk have a `build:`
 section (`sourceBuild`, not the last deploy's `services`) get a
 secondary **Build** split button ("More Build Options"): "Build" and
 "Pull and Build" (`POST /stacks/{id}/builds`, `buildStack`, with `pull`
@@ -302,10 +302,10 @@ for newer base images; a `stack.build` job that deploys nothing, words
 from `buildCopy`) with `stack.build`, then after a separator "Build and
 Deploy" (`build: true`) and "Pull, Build and Deploy" (`pull: always` and
 `build: true`, which also pulls newer base images) with `stack.deploy`;
-its main part runs the first entry it has. "Deploy and Remove Old Containers…", whose
+its main part runs the first entry it has. "Remove Orphans and Deploy", whose
 confirmation (`RemoveOrphansDialog`, opened through the stack page
-context's `removeOrphans` request) the overview's drift notice ("Remove Old
-Containers…") opens too. There is no separate Update button; schedules and
+context's `removeOrphans` request) the overview's drift notice ("Remove Orphans
+and Deploy") opens too. There is no separate Update button; schedules and
 automatic updates stay in the update settings.
 
 Start, Restart and Stop are one split button, `LifecycleButton`
@@ -350,21 +350,23 @@ Restart and Stop (header, and the stack list through `restoringStacks`):
 it starts what ran before itself, and a down would remove those
 containers. The list row of a running `stack.down` says "Stopping". Row menus (services table,
 stack and container lists) keep their own entries in the same order
-(Start, Restart, Stop…, Stop in the danger tone; the stack list's Start
+(Start, Restart, Stop, Stop in the danger tone; the stack list's Start
 also starts the rest of a partially running stack). The services table
 gates each row on the service's own `actions` (Start, Stop and Restart may
 be granted on one service, #280; they also hold the stack's and the
-containers' capabilities) and its row menu adds "Force Recreate <service>" after them with `stack.deploy`
+containers' capabilities; its items do not repeat the service's name:
+"Start", "Logs") and its row menu adds "Force Recreate" after them with
+`stack.deploy`
 (on for Docker Manager's own stack, whose deploys work): a deploy with
 `forceRecreate` and `services: [<service>]`, confirmed on the stack page
 first; Compose recreates the service's dependencies only when they
 changed. The container list's
 bulk bar stays separate buttons (a selection mixes states).
 
-**Recreate…** (`container.recreate`, #273) replaces a standalone container
+**Recreate** (`container.recreate`, #273) replaces a standalone container
 with a new one from the same settings. `containerActions` offers it only
 for containers without a stack or Compose project (`stack` absent) that
-are not Docker Manager's own; it sits before **Remove…** in the danger
+are not Docker Manager's own; it sits before **Remove** in the danger
 group at the end of the container page's "More Actions" menu and of the
 container list's row menu, never in the bulk bar. `ContainerActionHost`
 confirms it (`ConfirmDialog`: the image, volumes kept, changes outside

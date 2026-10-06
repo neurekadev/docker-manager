@@ -327,7 +327,7 @@
 		// Stop runs Compose down: it also removes a stopped stack's containers.
 		if (lifecycle && can('stack.stop') && (!stopped || st === 'stopped'))
 			items.push({
-				label: 'Stop…',
+				label: 'Stop',
 				icon: Square,
 				tone: 'danger',
 				disabled: offline || !!s.protection,

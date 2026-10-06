@@ -7,7 +7,7 @@
 	// RenameStackInline, which renames at once) and the actions: the Deploy
 	// split button (the one primary; its menu has Deploy and Pull and Deploy,
 	// which says when newer images are available, then Force Recreate and
-	// Deploy and Remove Old Containers after a separator), the Build split button
+	// Remove Orphans and Deploy after a separator), the Build split button
 	// for stacks with a build section (Build and Pull and Build, which pulls
 	// newer base images, build without deploying, with stack.build; after a
 	// separator Build and Deploy and Pull, Build and Deploy, with stack.deploy),
@@ -17,7 +17,7 @@
 	// overflow (Migrate with more than one environment, Edit Details, Save
 	// as Template, Delete). Each action is shown only with its capability
 	// (the server still decides). Start and Restart run at once; Stop,
-	// Delete, Force Recreate and Deploy and Remove Old Containers confirm with their
+	// Delete, Force Recreate and Remove Orphans and Deploy confirm with their
 	// exact consequences first. Docker Manager's own stack (#32) deploys and
 	// force recreates; Restart, Stop, Migrate, Rename and Delete stay
 	// visible but disabled, with the reason. While a rename of the
@@ -382,9 +382,9 @@
 		{ label: 'Pull', icon: CloudDownload, onSelect: () => void pull() },
 		{ separator: true },
 		// Replaces every container, changed or not (confirmed first).
-		{ label: 'Force Recreate…', icon: RefreshCcw, onSelect: () => (recreating = true) },
+		{ label: 'Force Recreate', icon: RefreshCcw, onSelect: () => (recreating = true) },
 		{
-			label: 'Deploy and Remove Old Containers…',
+			label: 'Remove Orphans and Deploy',
 			icon: Eraser,
 			onSelect: () => removeOrphans.request()
 		}
@@ -450,7 +450,7 @@
 		if (can('stack.remove')) {
 			if (items.length) items.push({ separator: true });
 			items.push({
-				label: 'Delete…',
+				label: 'Delete',
 				icon: Trash2,
 				tone: 'danger',
 				onSelect: () => (deleting = true),

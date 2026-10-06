@@ -671,7 +671,7 @@ export function deployTitle(title: string, c: DeployChoice): string {
 	if (c.build && c.pull) return `Pull, Build and Deploy ${title}`;
 	if (c.build) return `Build and Deploy ${title}`;
 	if (c.pull) return `Pull and Deploy ${title}`;
-	if (c.removeOrphans) return `Deploy ${title} and Remove Old Containers`;
+	if (c.removeOrphans) return `Remove Orphans and Deploy ${title}`;
 	return `Deploy ${title}`;
 }
 
@@ -819,7 +819,7 @@ const DRIFT_TEXT: Record<string, (s: string) => string> = {
 	running_while_stopped: (s) =>
 		`${s} runs although the stack was stopped. Stop the stack again, or start it to keep it running.`,
 	unexpected_service: (s) =>
-		`${s} is no longer in the Compose file, but its container is still on the host. “Remove Old Containers” deploys the stack and removes it.`,
+		`${s} is no longer in the Compose file, but its container is still on the host. “Remove Orphans and Deploy” removes it and deploys the stack.`,
 	image_changed: (s) =>
 		`${s} runs another image than the last deploy used. Deploy the stack to run the image its Compose file names.`
 };

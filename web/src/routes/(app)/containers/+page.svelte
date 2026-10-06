@@ -153,7 +153,7 @@
 		if (lifecycle.length) entries.push({ separator: true });
 		for (const a of lifecycle)
 			entries.push({
-				label: a.verb === 'stop' ? 'Stop…' : a.label,
+				label: a.label,
 				tone: a.verb === 'stop' ? 'danger' : undefined,
 				onSelect: () => host?.request(c, a.verb)
 			});
@@ -163,7 +163,7 @@
 		if (destructive.length) entries.push({ separator: true });
 		for (const a of destructive)
 			entries.push({
-				label: `${a.label}…`,
+				label: a.label,
 				tone: 'danger',
 				onSelect: () => host?.request(c, a.verb)
 			});

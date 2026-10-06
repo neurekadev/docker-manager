@@ -161,7 +161,7 @@
 			!onlyOneEnvironment(scope.envs.data)
 		)
 			out.push({
-				label: 'Migrate…',
+				label: 'Migrate',
 				href: routes.volume(v.environmentId, v.name, 'migrate')
 			});
 		// Docker Manager's own volumes are never removed: no entry, like the volume's page.
@@ -169,7 +169,7 @@
 			out.push(
 				{ separator: true },
 				{
-					label: 'Remove…',
+					label: 'Remove',
 					tone: 'danger',
 					onSelect: () =>
 						remover?.request({

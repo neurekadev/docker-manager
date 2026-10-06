@@ -458,7 +458,7 @@
 							onSelect: () => toast.success('Pulled newer images and redeployed Silo')
 						},
 						{
-							label: 'Deploy and Remove Old Containers…',
+							label: 'Remove Orphans and Deploy',
 							onSelect: () => (confirmOpen = true)
 						}
 					]}
@@ -842,7 +842,7 @@
 			{#snippet actions()}
 				<Button size="sm">Compare</Button>
 				<Button size="sm">Reload From Disk</Button>
-				<Button size="sm">Save As…</Button>
+				<Button size="sm">Save As</Button>
 				<Button size="sm" variant="danger-soft">Overwrite</Button>
 			{/snippet}
 		</Notice>
