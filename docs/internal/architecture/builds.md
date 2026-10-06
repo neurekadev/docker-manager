@@ -69,7 +69,9 @@ At dispatch the manager resolves the IDs into the command's `secrets`
 1. `fetch_context` — ls-remote with the Git credential (from memory) and
    resolve the ref to a commit (items `commit`, `ref`);
 2. `build` — BuildKit builds `<url>#<commit>[:<context>]`, i.e. exactly
-   that commit; the Git credential is served over the build's BuildKit
+   that commit (`.git` is appended to a URL path without it: BuildKit
+   treats an http(s) context as Git only with that suffix and would
+   otherwise download the URL and parse it as the Dockerfile); the Git credential is served over the build's BuildKit
    session as the secret `GIT_AUTH_HEADER.<host>` (HTTP basic value; never
    in the URL), registry credentials by the session's auth provider
    (#19, #21). BuildKit status and log lines become job progress (step
