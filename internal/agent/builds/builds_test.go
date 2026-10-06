@@ -210,6 +210,18 @@ func TestPublicBuildAndTags(t *testing.T) {
 	}
 }
 
+func TestRepositoryURLWithoutGitSuffixIsBuiltAsGit(t *testing.T) {
+	f := newFixture(t)
+	f.git.Add("/acme/plain", &gittest.Repo{Head: "refs/heads/main", Refs: map[string]string{"refs/heads/main": mainSHA}})
+	for i, path := range []string{"/acme/plain", "/acme/plain/", "/acme/public.git/"} {
+		res, _, _ := f.run(f.input(path, func(in *jobspec.ImageBuildInput) { in.ContextPath = "" }), nil, nil)
+		want := f.git.URL(strings.TrimSuffix(strings.TrimSuffix(path, "/"), ".git")+".git") + "#" + mainSHA
+		if res.Outcome != jobexec.OutcomeSucceeded || f.eng.specs[i].RemoteContext != want {
+			t.Fatalf("%s: %+v %+v", path, res, f.eng.specs)
+		}
+	}
+}
+
 func TestNamedCredentialIsNeverReplacedByAnonymousAccess(t *testing.T) {
 	f := newFixture(t)
 	in := f.input("/acme/public.git", func(in *jobspec.ImageBuildInput) { in.GitCredentials = []string{"g1"} })

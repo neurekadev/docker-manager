@@ -5,8 +5,9 @@
 //	fetch_context  resolve the ref to a commit with an in-process
 //	               ls-remote (internal/gitremote) using the job's Git
 //	               credential, and record it (item "commit")
-//	build          build <url>#<commit>[:<context>] — exactly the resolved
-//	               commit — with the Git credential served to BuildKit as a
+//	build          build <url>.git#<commit>[:<context>] — exactly the
+//	               resolved commit; ".git" is added when the URL lacks it,
+//	               or BuildKit would not fetch it as Git — with the Git credential served to BuildKit as a
 //	               session secret and base-image registry credentials from
 //	               the command (#19); stream BuildKit progress and logs as
 //	               job progress; honor cancellation and the timeout; record
@@ -175,7 +176,7 @@ func (e *executor) build(ctx context.Context, sc *jobexec.StepContext) error {
 	if eng == nil {
 		return errors.New("the Docker Engine is not connected")
 	}
-	remote := repo.String() + "#" + res.commit
+	remote := gitContextURL(repo) + "#" + res.commit
 	if in.ContextPath != "" {
 		remote += ":" + in.ContextPath
 	}
@@ -206,6 +207,17 @@ func (e *executor) build(ctx context.Context, sc *jobexec.StepContext) error {
 	sc.Item(ctx, jobspec.BuildItemImage, domain.ItemSucceeded, result.ImageID)
 	sc.Progress(ctx, 100, "built "+result.ImageID)
 	return nil
+}
+
+// gitContextURL is repo's URL as a BuildKit Git context. BuildKit takes an
+// http(s) context for a Git repository only when its path ends in ".git";
+// otherwise it downloads the URL (a web page on most Git hosts) and parses
+// it as the Dockerfile.
+func gitContextURL(repo gitremote.Repo) string {
+	if strings.HasSuffix(repo.Path(), ".git") {
+		return repo.String()
+	}
+	return repo.String() + ".git"
 }
 
 // scrubErr returns err with the attempt's secrets removed from its text.
