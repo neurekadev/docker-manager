@@ -40,6 +40,7 @@ import (
 // JobEngine is the part of the #26 engine the service uses.
 type JobEngine interface {
 	Enqueue(ctx context.Context, req jobs.Request) (domain.Job, bool, error)
+	EnqueueAll(ctx context.Context, reqs []jobs.Request) ([]domain.Job, bool, error)
 	List(ctx context.Context, f domain.JobFilter) ([]domain.Job, error)
 	Cancel(ctx context.Context, id string) (domain.Job, error)
 	OnFinish(kind domain.JobKind, h jobs.FinishHook)

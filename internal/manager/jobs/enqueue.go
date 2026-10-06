@@ -53,96 +53,19 @@ const MaxIdempotencyKeyLen = 128
 // Enqueue validates, authorizes and stores a queued job. created is false
 // when an existing job was returned for a repeated idempotency key.
 func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, created bool, err error) {
-	if e.opts.MoveLock.ReadOnly() {
-		return domain.Job{}, false, ErrManagerMoved
-	}
-	spec, ok := jobspec.Lookup(req.Kind)
-	if !ok {
-		return domain.Job{}, false, fmt.Errorf("%w: %q", domain.ErrJobUnknownKind, req.Kind)
-	}
-	if !req.Principal.Valid() {
-		return domain.Job{}, false, fmt.Errorf("%w: invalid principal", domain.ErrJobInvalid)
-	}
-	if len(req.IdempotencyKey) > MaxIdempotencyKeyLen {
-		return domain.Job{}, false, fmt.Errorf("%w: idempotency key longer than %d bytes", domain.ErrJobInvalid, MaxIdempotencyKeyLen)
-	}
-	if spec.Executor == domain.ExecutorManager {
-		e.mgrMu.Lock()
-		_, ok := e.mgrExecs[spec.Kind]
-		e.mgrMu.Unlock()
-		if !ok {
-			return domain.Job{}, false, fmt.Errorf("%w: %s", domain.ErrJobKindUnavailable, spec.Kind)
-		}
-	}
-	input, err := canonicalInput(req.Input)
+	j, spec, err := e.prepare(ctx, req)
 	if err != nil {
 		return domain.Job{}, false, err
-	}
-	locks, err := spec.ComputeLocks(req.EnvironmentID, req.Targets)
-	if err != nil {
-		return domain.Job{}, false, err
-	}
-	caps, err := spec.Capabilities(req.Targets, input)
-	if err != nil {
-		return domain.Job{}, false, err
-	}
-	if d := e.authorize(ctx, req.Principal, caps, req.EnvironmentID, spec.AuthorizationTargets(req.Targets)); !d.Allowed {
-		return domain.Job{}, false, fmt.Errorf("%w: %s", domain.ErrJobForbidden, d.Reason)
-	}
-	// Archived environments are hidden from operations (#34): users and
-	// API tokens cannot start work there. Policy sources refuse their
-	// scheduled runs themselves; internal follow-ups keep the offline rules.
-	if req.EnvironmentID != "" && !req.Principal.IsService() {
-		env, err := store.GetEnvironment(ctx, e.db, req.EnvironmentID)
-		if err == nil && env.Status == domain.EnvironmentArchived {
-			return domain.Job{}, false, fmt.Errorf("%w: %s", domain.ErrEnvironmentArchived, req.EnvironmentID)
-		}
-	}
-
-	now := e.now()
-	j := domain.Job{
-		ID: ids.New(), Kind: spec.Kind, Executor: spec.Executor, Origin: originOf(req.Principal),
-		InitiatorUserID: req.Principal.UserID, InitiatorTokenID: req.Principal.TokenID, PolicyID: req.PolicyID,
-		RetryOf:       req.retryOf,
-		RequestID:     protocol.RequestIDOrEmpty(logging.RequestID(ctx)),
-		EnvironmentID: req.EnvironmentID, Targets: slices.Clone(req.Targets), Input: input,
-		InputHash:      inputHash(spec.Kind, req.EnvironmentID, req.PolicyID, req.Targets, input),
-		IdempotencyKey: req.IdempotencyKey, Attempt: 1, State: domain.JobQueued,
-		Progress: domain.JobProgress{Percent: -1}, Locks: locks, CreatedAt: now, UpdatedAt: now,
 	}
 	err = e.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if j.IdempotencyKey != "" {
-			existing, found, err := store.FindJobByIdempotencyKey(ctx, tx, &j)
-			if err != nil {
-				return err
-			}
-			if found {
-				if existing.InputHash != j.InputHash || existing.RetryOf != j.RetryOf {
-					return domain.ErrJobIdempotencyConflict
-				}
-				job = existing
-				return nil
-			}
-		}
-		if spec.StartsContainers {
-			if err := restoreInProgress(ctx, tx, locks); err != nil {
-				return err
-			}
-		}
-		if err := store.InsertJob(ctx, tx, &j); err != nil {
-			if errors.Is(err, store.ErrIdempotencyKeyTaken) {
-				return domain.ErrJobIdempotencyConflict
-			}
+		existing, found, err := e.insert(ctx, tx, &j, spec, req.Principal)
+		if err != nil {
 			return err
 		}
-		if err := e.event(ctx, tx, domain.JobEvent{JobID: j.ID, Type: domain.JobEventState, State: domain.JobQueued,
-			Message: "queued (" + string(j.Origin) + ")"}); err != nil {
-			return err
+		job, created = j, !found
+		if found {
+			job = existing
 		}
-		if err := e.recordJob(ctx, tx, &j, audit.ActionJobQueued, audit.ActorFor(req.Principal), domain.AuditSuccess, "", nil); err != nil {
-			return err
-		}
-		job, created = j, true
 		return nil
 	})
 	if err != nil {
@@ -153,6 +76,152 @@ func (e *Engine) Enqueue(ctx context.Context, req Request) (job domain.Job, crea
 		e.Wake()
 	}
 	return job, created, nil
+}
+
+// EnqueueAll validates, authorizes and stores reqs as queued jobs in one
+// transaction: all of them or none, so a run that covers several
+// environments starts everywhere or nowhere and the dispatcher never sees
+// part of it (#247). Repeating a batch whose idempotency keys all match
+// jobs stored before returns those jobs (created false); a batch that
+// matches only some of them is domain.ErrJobIdempotencyConflict.
+func (e *Engine) EnqueueAll(ctx context.Context, reqs []Request) (out []domain.Job, created bool, err error) {
+	prepared := make([]domain.Job, len(reqs))
+	specs := make([]jobspec.Spec, len(reqs))
+	for i, req := range reqs {
+		if prepared[i], specs[i], err = e.prepare(ctx, req); err != nil {
+			return nil, false, err
+		}
+	}
+	err = e.tx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		out = make([]domain.Job, len(prepared))
+		found := 0
+		for i := range prepared {
+			existing, ok, err := e.insert(ctx, tx, &prepared[i], specs[i], reqs[i].Principal)
+			if err != nil {
+				return err
+			}
+			out[i] = prepared[i]
+			if ok {
+				out[i] = existing
+				found++
+			}
+		}
+		if found != 0 && found != len(prepared) {
+			return domain.ErrJobIdempotencyConflict
+		}
+		created = found == 0
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if created && len(out) > 0 {
+		for _, j := range out {
+			e.notify(j.ID)
+		}
+		e.Wake()
+	}
+	return out, created, nil
+}
+
+// prepare validates and authorizes req and builds its queued job (not
+// stored yet).
+func (e *Engine) prepare(ctx context.Context, req Request) (domain.Job, jobspec.Spec, error) {
+	if e.opts.MoveLock.ReadOnly() {
+		return domain.Job{}, jobspec.Spec{}, ErrManagerMoved
+	}
+	spec, ok := jobspec.Lookup(req.Kind)
+	if !ok {
+		return domain.Job{}, spec, fmt.Errorf("%w: %q", domain.ErrJobUnknownKind, req.Kind)
+	}
+	if !req.Principal.Valid() {
+		return domain.Job{}, spec, fmt.Errorf("%w: invalid principal", domain.ErrJobInvalid)
+	}
+	if len(req.IdempotencyKey) > MaxIdempotencyKeyLen {
+		return domain.Job{}, spec, fmt.Errorf("%w: idempotency key longer than %d bytes", domain.ErrJobInvalid, MaxIdempotencyKeyLen)
+	}
+	if spec.Executor == domain.ExecutorManager {
+		e.mgrMu.Lock()
+		_, ok := e.mgrExecs[spec.Kind]
+		e.mgrMu.Unlock()
+		if !ok {
+			return domain.Job{}, spec, fmt.Errorf("%w: %s", domain.ErrJobKindUnavailable, spec.Kind)
+		}
+	}
+	input, err := canonicalInput(req.Input)
+	if err != nil {
+		return domain.Job{}, spec, err
+	}
+	locks, err := spec.ComputeLocks(req.EnvironmentID, req.Targets)
+	if err != nil {
+		return domain.Job{}, spec, err
+	}
+	caps, err := spec.Capabilities(req.Targets, input)
+	if err != nil {
+		return domain.Job{}, spec, err
+	}
+	if d := e.authorize(ctx, req.Principal, caps, req.EnvironmentID, spec.AuthorizationTargets(req.Targets)); !d.Allowed {
+		return domain.Job{}, spec, fmt.Errorf("%w: %s", domain.ErrJobForbidden, d.Reason)
+	}
+	// Archived environments are hidden from operations (#34): users and
+	// API tokens cannot start work there. Policy sources refuse their
+	// scheduled runs themselves; internal follow-ups keep the offline rules.
+	if req.EnvironmentID != "" && !req.Principal.IsService() {
+		env, err := store.GetEnvironment(ctx, e.db, req.EnvironmentID)
+		if err == nil && env.Status == domain.EnvironmentArchived {
+			return domain.Job{}, spec, fmt.Errorf("%w: %s", domain.ErrEnvironmentArchived, req.EnvironmentID)
+		}
+	}
+
+	now := e.now()
+	return domain.Job{
+		ID: ids.New(), Kind: spec.Kind, Executor: spec.Executor, Origin: originOf(req.Principal),
+		InitiatorUserID: req.Principal.UserID, InitiatorTokenID: req.Principal.TokenID, PolicyID: req.PolicyID,
+		RetryOf:       req.retryOf,
+		RequestID:     protocol.RequestIDOrEmpty(logging.RequestID(ctx)),
+		EnvironmentID: req.EnvironmentID, Targets: slices.Clone(req.Targets), Input: input,
+		InputHash:      inputHash(spec.Kind, req.EnvironmentID, req.PolicyID, req.Targets, input),
+		IdempotencyKey: req.IdempotencyKey, Attempt: 1, State: domain.JobQueued,
+		Progress: domain.JobProgress{Percent: -1}, Locks: locks, CreatedAt: now, UpdatedAt: now,
+	}, spec, nil
+}
+
+// insert stores the prepared job j in tx with its queued event and audit
+// record, or returns the job already stored under its idempotency key
+// (found; a different input under the key is
+// domain.ErrJobIdempotencyConflict).
+func (e *Engine) insert(ctx context.Context, tx bun.Tx, j *domain.Job, spec jobspec.Spec, p authz.Principal) (existing domain.Job, found bool, err error) {
+	if j.IdempotencyKey != "" {
+		existing, found, err := store.FindJobByIdempotencyKey(ctx, tx, j)
+		if err != nil {
+			return domain.Job{}, false, err
+		}
+		if found {
+			if existing.InputHash != j.InputHash || existing.RetryOf != j.RetryOf {
+				return domain.Job{}, false, domain.ErrJobIdempotencyConflict
+			}
+			return existing, true, nil
+		}
+	}
+	if spec.StartsContainers {
+		if err := restoreInProgress(ctx, tx, j.Locks); err != nil {
+			return domain.Job{}, false, err
+		}
+	}
+	if err := store.InsertJob(ctx, tx, j); err != nil {
+		if errors.Is(err, store.ErrIdempotencyKeyTaken) {
+			return domain.Job{}, false, domain.ErrJobIdempotencyConflict
+		}
+		return domain.Job{}, false, err
+	}
+	if err := e.event(ctx, tx, domain.JobEvent{JobID: j.ID, Type: domain.JobEventState, State: domain.JobQueued,
+		Message: "queued (" + string(j.Origin) + ")"}); err != nil {
+		return domain.Job{}, false, err
+	}
+	if err := e.recordJob(ctx, tx, j, audit.ActionJobQueued, audit.ActorFor(p), domain.AuditSuccess, "", nil); err != nil {
+		return domain.Job{}, false, err
+	}
+	return domain.Job{}, false, nil
 }
 
 // restoreInProgress refuses a kind that starts containers while a restore

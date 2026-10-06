@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
-	"time"
 
 	"github.com/uptrace/bun"
 
@@ -309,10 +309,6 @@ func (s *Service) permitted(ctx context.Context, st domain.MaintenanceSetup, per
 // previewParallel bounds the agents a preview asks at once.
 const previewParallel = 8
 
-// rollbackTimeout bounds cancelling one job of a start that failed part
-// way.
-const rollbackTimeout = 10 * time.Second
-
 // Preview asks each environment the setup covers what a run would remove
 // now, several at once (each answers within PreviewTimeout). An
 // environment that cannot answer reports its error; the others are
@@ -346,10 +342,9 @@ func (s *Service) Preview(ctx context.Context, permit Permit) ([]EnvironmentPrev
 // confirmed it): one prune job per environment it covers. The jobs are
 // durable and manager-owned: whether the UI follows them or not is
 // presentation only. A second run while one is active is refused. Every
-// request is built before the first is enqueued, and when an enqueue
-// fails the jobs already queued are cancelled: a run starts everywhere or
-// nowhere. permit refuses the run when the caller may not prune one of
-// the environments.
+// request is built first and the jobs are enqueued in one transaction: a
+// run starts everywhere or nowhere. permit refuses the run when the
+// caller may not prune one of the environments.
 func (s *Service) Run(ctx context.Context, principal authz.Principal, key string, permit Permit) ([]domain.Job, error) {
 	st, err := s.Setup(ctx)
 	if err != nil {
@@ -387,34 +382,14 @@ func (s *Service) Run(ctx context.Context, principal authz.Principal, key string
 		}
 		reqs = append(reqs, req)
 	}
-	out := make([]domain.Job, 0, len(reqs))
-	for _, req := range reqs {
-		job, created, err := s.opts.Jobs.Enqueue(ctx, req)
-		if err == nil && !created && job.State.Terminal() {
-			// The key of a start that failed (its jobs were cancelled):
-			// replaying it would report cancelled jobs as a new run.
-			err = domain.ErrJobIdempotencyConflict
-		}
-		if err != nil {
-			// The request may be cancelled already: cancel what was
-			// queued regardless, all at once, each within a bound of its
-			// own (so the rollback takes about one bound, and one slow
-			// cancel does not skip the others).
-			base := context.WithoutCancel(ctx)
-			var wg sync.WaitGroup
-			for _, j := range out {
-				wg.Go(func() {
-					cctx, cancel := context.WithTimeout(base, rollbackTimeout)
-					defer cancel()
-					if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
-						s.log.Warn("could not cancel a prune run of a failed start", "job_id", j.ID, "error", cerr)
-					}
-				})
-			}
-			wg.Wait()
-			return nil, err
-		}
-		out = append(out, job)
+	out, created, err := s.opts.Jobs.EnqueueAll(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+	if !created && slices.ContainsFunc(out, func(j domain.Job) bool { return j.State.Terminal() }) {
+		// The key of a run that has ended (or was cancelled): replaying it
+		// would report finished jobs as a new run.
+		return nil, domain.ErrJobIdempotencyConflict
 	}
 	return out, nil
 }

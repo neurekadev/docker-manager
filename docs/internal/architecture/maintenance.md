@@ -146,10 +146,10 @@ removed.
 `Idempotency-Key` enqueues one `prune.run` job per covered environment
 (`{jobs}`; a repeated key replays the response, `IdempotencyStored`, and
 the jobs' own keys are `<key>/<environmentId>`). Every request is built
-before the first is enqueued; when an enqueue fails, the jobs already
-queued are cancelled (also when the request itself was cancelled), so a
-run starts everywhere or nowhere, and its key is refused afterwards (409:
-replaying it would report the cancelled jobs). The caller's grant is
+first and the jobs are stored in one transaction (`Engine.EnqueueAll`),
+so a run starts everywhere or nowhere. Replaying the key of a run whose
+jobs have ended or were cancelled is refused (409: it would report
+finished jobs as a new run). The caller's grant is
 checked on the very environments the run or preview acts on:
 
 - **Confirmation**: without `confirm: true` → `409

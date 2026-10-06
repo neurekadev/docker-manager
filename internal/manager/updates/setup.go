@@ -9,9 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 	"unicode/utf8"
 
 	"github.com/uptrace/bun"
@@ -562,69 +559,22 @@ func tooMany(reqs []jobs.Request) error {
 	return nil
 }
 
-// rollbackTimeout bounds cancelling one job of a start that failed part
-// way, and rollbackDeadline the whole rollback.
-const (
-	rollbackTimeout  = 10 * time.Second
-	rollbackDeadline = 30 * time.Second
-)
-
-// rollbackParallel bounds the cancels of a rollback that run at once.
-const rollbackParallel = 16
-
-// enqueueAll enqueues reqs for principal (job keys key#i) all or none:
-// when one fails, the jobs already queued are cancelled (also when the
-// request was cancelled), and the key of such a start is refused
-// afterwards (replaying it would report the cancelled jobs).
+// enqueueAll enqueues reqs for principal (job keys key#i) in one
+// transaction: all of them or none. The key of a start whose jobs have
+// ended (or were cancelled) is refused: replaying it would report
+// finished jobs as a new run.
 func (s *Service) enqueueAll(ctx context.Context, principal authz.Principal, key string, reqs []jobs.Request) ([]domain.Job, error) {
-	out := make([]domain.Job, 0, len(reqs))
-	for i, req := range reqs {
-		req.Principal, req.IdempotencyKey = principal, jobKey(key, i)
-		job, created, err := s.opts.Jobs.Enqueue(ctx, req)
-		if err == nil && !created && job.State.Terminal() {
-			err = domain.ErrJobIdempotencyConflict
-		}
-		if err != nil {
-			s.rollback(ctx, out)
-			return nil, err
-		}
-		out = append(out, job)
+	for i := range reqs {
+		reqs[i].Principal, reqs[i].IdempotencyKey = principal, jobKey(key, i)
+	}
+	out, created, err := s.opts.Jobs.EnqueueAll(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+	if !created && slices.ContainsFunc(out, func(j domain.Job) bool { return j.State.Terminal() }) {
+		return nil, domain.ErrJobIdempotencyConflict
 	}
 	return out, nil
-}
-
-// rollback cancels the jobs of a start that failed part way, also when
-// the request was cancelled already: rollbackParallel at a time, each
-// within rollbackTimeout (one slow cancel does not skip the others), and
-// none started after rollbackDeadline. The jobs it could not cancel are
-// logged (best effort: an all-or-none start in the job engine is #247).
-func (s *Service) rollback(ctx context.Context, queued []domain.Job) {
-	all, stop := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeadline)
-	defer stop()
-	var wg sync.WaitGroup
-	var left atomic.Int64
-	slots := make(chan struct{}, rollbackParallel)
-	for _, j := range queued {
-		slots <- struct{}{}
-		if all.Err() != nil {
-			<-slots
-			left.Add(1)
-			continue
-		}
-		wg.Go(func() {
-			defer func() { <-slots }()
-			cctx, cancel := context.WithTimeout(all, rollbackTimeout)
-			defer cancel()
-			if _, cerr := s.opts.Jobs.Cancel(cctx, j.ID); cerr != nil && !errors.Is(cerr, domain.ErrJobFinished) {
-				left.Add(1)
-				s.log.Warn("could not cancel a job of a failed start", "job_id", j.ID, "error", cerr)
-			}
-		})
-	}
-	wg.Wait()
-	if n := left.Load(); n > 0 {
-		s.log.Warn("the rollback of a failed start left jobs queued", "jobs", n)
-	}
 }
 
 // jobKey is the idempotency key of the i-th job of a request with key

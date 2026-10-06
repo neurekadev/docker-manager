@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -85,6 +86,71 @@ func mustSpec(k domain.JobKind) jobspec.Spec {
 		panic(k)
 	}
 	return s
+}
+
+// TestEnqueueAll: a batch is stored all or none (#247): a refused request
+// or a failure while storing leaves no job of the batch behind; a repeated
+// batch returns its jobs and a partly repeated one is a conflict.
+func TestEnqueueAll(t *testing.T) {
+	h := newHarness(t)
+	batch := func(key string, envs ...string) []jobs.Request {
+		var reqs []jobs.Request
+		for i, env := range envs {
+			reqs = append(reqs, jobs.Request{Kind: jobspec.StackDeploy, Principal: user("alice"), EnvironmentID: env,
+				Targets: []domain.JobTarget{stack("web-" + env)}, IdempotencyKey: fmt.Sprintf("%s#%d", key, i)})
+		}
+		return reqs
+	}
+	count := func() int {
+		t.Helper()
+		js, err := h.eng.List(h.ctx, domain.JobFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(js)
+	}
+
+	// A refused request refuses the batch before anything is stored.
+	refused := batch("k1", "e1", "e2", "e3")
+	refused[2].Principal = user("mallory")
+	h.az.revoke("mallory", "stack.deploy")
+	if _, _, err := h.eng.EnqueueAll(h.ctx, refused); !errors.Is(err, domain.ErrJobForbidden) {
+		t.Fatalf("refused batch: %v", err)
+	}
+	// A failure while storing (the last key is taken by another input)
+	// rolls back the jobs stored before it.
+	if _, _, err := h.eng.Enqueue(h.ctx, jobs.Request{Kind: jobspec.StackDeploy, Principal: user("alice"), EnvironmentID: "e9",
+		Targets: []domain.JobTarget{stack("other")}, IdempotencyKey: "k2#2"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := h.eng.EnqueueAll(h.ctx, batch("k2", "e1", "e2", "e3")); !errors.Is(err, domain.ErrJobIdempotencyConflict) {
+		t.Fatalf("batch with a taken key: %v", err)
+	}
+	if n := count(); n != 1 {
+		t.Fatalf("%d jobs after failed batches, want 1", n)
+	}
+
+	js, created, err := h.eng.EnqueueAll(h.ctx, batch("k3", "e1", "e2", "e3"))
+	if err != nil || !created || len(js) != 3 {
+		t.Fatalf("batch: %d jobs, created=%v: %v", len(js), created, err)
+	}
+	for i, j := range js {
+		if got := h.wantState(j.ID, domain.JobQueued); got.EnvironmentID != fmt.Sprintf("e%d", i+1) {
+			t.Fatalf("job %d: %+v", i, got)
+		}
+	}
+	// The same batch again returns the stored jobs.
+	again, created, err := h.eng.EnqueueAll(h.ctx, batch("k3", "e1", "e2", "e3"))
+	if err != nil || created || len(again) != 3 || again[0].ID != js[0].ID || again[2].ID != js[2].ID {
+		t.Fatalf("replay: %+v created=%v: %v", again, created, err)
+	}
+	// A batch that repeats only some of the keys adds nothing.
+	if _, _, err := h.eng.EnqueueAll(h.ctx, batch("k3", "e1", "e2", "e3", "e4")); !errors.Is(err, domain.ErrJobIdempotencyConflict) {
+		t.Fatalf("partial replay: %v", err)
+	}
+	if n := count(); n != 4 {
+		t.Fatalf("%d jobs, want 4", n)
+	}
 }
 
 func TestIdempotency(t *testing.T) {

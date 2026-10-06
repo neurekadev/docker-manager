@@ -49,7 +49,7 @@ import (
 // Jobs is the job engine as the update service uses it (*jobs.Engine).
 type Jobs interface {
 	Enqueue(ctx context.Context, req jobs.Request) (domain.Job, bool, error)
-	Cancel(ctx context.Context, id string) (domain.Job, error)
+	EnqueueAll(ctx context.Context, reqs []jobs.Request) ([]domain.Job, bool, error)
 	OnFinish(kind domain.JobKind, h jobs.FinishHook)
 	RegisterManagerExecutor(x jobexec.Executor) error
 }
