@@ -147,3 +147,35 @@ func TestDefinitionPaths(t *testing.T) {
 		}
 	}
 }
+
+// TestIncludedFilesAreDefinitionFiles (#283): a Compose file the
+// definition includes is recorded with it and guarded as a definition
+// file, a change to it or to a directory above it records a revision, and
+// a save of it is not validated from memory (the validation would load
+// its old content from disk, so a broken included file could not be
+// fixed).
+func TestIncludedFilesAreDefinitionFiles(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	h.write("services:\n  cache:\n    image: redis:7\n", "shop", "lib", "cache", "cache.yaml")
+	h.write("include: [lib/cache/cache.yaml]\n"+shopYAML, "shop", "compose.yaml")
+	if rev, err := h.svc.ExternalChange(h.ctx, st.ID, []string{"compose.yaml"}, false); err != nil || rev == nil {
+		t.Fatalf("compose.yaml change %+v %v", rev, err)
+	}
+	root, err := h.svc.Root(h.ctx, st.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(root.DefinitionFiles, "lib/cache/cache.yaml") ||
+		!stacks.IsDefinitionFile(h.get(st.ID), root.DefinitionFiles, "./lib/cache/cache.yaml") {
+		t.Fatalf("definition files %v lack the included file", root.DefinitionFiles)
+	}
+	h.write("services:\n  cache:\n    image: redis:8\n", "shop", "lib", "cache", "cache.yaml")
+	if rev, err := h.svc.ExternalChange(h.ctx, st.ID, []string{"lib"}, false); err != nil || rev == nil {
+		t.Fatalf("a change below lib/ %+v %v", rev, err)
+	}
+	h.write("services: [broken", "shop", "lib", "cache", "cache.yaml")
+	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, "lib/cache/cache.yaml", []byte("services:\n  cache:\n    image: redis:8\n")); err != nil {
+		t.Errorf("the save fixing an included file: %v", err)
+	}
+}

@@ -92,7 +92,8 @@ type FileRoot struct {
 	Scope         protocol.FileScope
 	EnvironmentID string
 	// Definition are a stack's declared definition files (the newest
-	// observed revision's, every Compose file and every env file):
+	// observed revision's, which include the files its Compose files
+	// include or extend, every Compose file and every env file):
 	// root-relative, clean, slash-separated.
 	Definition []string
 	// NoFollow: the stack's agent follows no symlink in the stack
@@ -1615,8 +1616,8 @@ func registerFiles(a huma.API, deps Deps) {
 	for _, sc := range scopes {
 		kind := sc.idName
 		what := "the stack's project directory"
-		defNote := " The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares, " +
-			"also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. " +
+		defNote := " The stack's definition files (Compose sources and .env at the root, every Compose and env file the stack declares " +
+			"and every file those include or extend, also inside a directory the operation covers) additionally need stack.definition.read / stack.definition.write. " +
 			"Symlinks are never followed in a stack's directory; on an agent that predates this, every content read needs " +
 			"stack.definition.read and every change stack.definition.write."
 		switch kind {

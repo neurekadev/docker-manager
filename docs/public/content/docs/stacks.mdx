@@ -91,6 +91,12 @@ Open **Files**, change `compose.yaml` or `.env` and press **Save**
 refuses a change that would break the stack. Saving does **not** deploy: the
 stack shows **Undeployed Changes** until you press **Deploy**.
 
+Files that `compose.yaml` pulls in with `include` or `extends` belong to the
+stack too: they are kept in its revisions and need the same permissions as
+`compose.yaml`. They must be inside the stack's folder: a stack that
+includes or extends a file from anywhere else doesn't deploy. Saving one of
+these files isn't checked; the next deploy shows any mistake.
+
 ## Revisions
 
 Every saved change to the Compose files is a **revision**. The

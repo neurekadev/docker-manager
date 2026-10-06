@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/neurekadev/docker-manager/internal/domain"
@@ -100,8 +101,10 @@ func (s *Service) stacksDir(ctx context.Context, environmentID string) (string, 
 // of relPath before the file manager writes it (#7, #15): the definition
 // on disk is read from the agent, the file is replaced (or added) and the
 // whole project is validated like a new stack's. Errors refuse the save
-// (invalid_definition); warnings do not. Files outside the definition are
-// not checked.
+// (invalid_definition); warnings do not. Only the files a validation loads
+// from memory are checked (loadedFromContent): other definition files
+// (included and extended Compose files, service env_files) would be read
+// from disk, so the check would judge their old content.
 func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath string, content []byte) error {
 	st, err := store.GetStack(ctx, s.db, stackID)
 	if errors.Is(err, domain.ErrStackNotFound) {
@@ -110,11 +113,7 @@ func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath strin
 	if err != nil {
 		return err
 	}
-	root, err := s.Root(ctx, stackID)
-	if err != nil {
-		return err
-	}
-	if !IsDefinitionFile(st, root.DefinitionFiles, relPath) {
+	if !loadedFromContent(st, relPath) {
 		return nil
 	}
 	var cur protocol.ComposeReadOutput
@@ -136,6 +135,14 @@ func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath strin
 		return invalidDefinition(v)
 	}
 	return nil
+}
+
+// loadedFromContent reports whether a validation from memory
+// (compose.validate with files) loads relPath's submitted bytes: a Compose
+// or override file, or an env file used for interpolation.
+func loadedFromContent(st domain.Stack, relPath string) bool {
+	rel, ok := cleanProjectPath(relPath)
+	return ok && slices.Contains(DefinitionPaths(st, nil), rel)
 }
 
 // sourceObserveTimeout bounds the background recording of a file-manager
@@ -212,15 +219,20 @@ func (s *Service) ExternalChange(ctx context.Context, stackID string, paths []st
 }
 
 // touchesDefinition reports whether a changed path is a definition file,
-// or a directory (reconciliation reports directories) that holds one.
+// or a directory (reconciliation reports directories) that holds one at
+// any depth (an included Compose file may live in a subdirectory).
 func touchesDefinition(st domain.Stack, known []string, paths []string) bool {
-	defs := append(append(append(slices.Clone(known), definitionNames...), st.ConfigFiles...), st.EnvFiles...)
+	defs := DefinitionPaths(st, known)
 	for _, p := range paths {
 		if p == "." || IsDefinitionFile(st, known, p) {
 			return true
 		}
+		dir, ok := cleanProjectPath(p)
+		if !ok {
+			continue
+		}
 		for _, d := range defs {
-			if path.Dir(d) == p {
+			if strings.HasPrefix(d, dir+"/") {
 				return true
 			}
 		}

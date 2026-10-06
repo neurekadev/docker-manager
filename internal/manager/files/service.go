@@ -45,7 +45,8 @@ type StackRoot struct {
 	// the agent, #28).
 	Dir string
 	// DefinitionFiles are the stack's declared definition files (Compose,
-	// override and env files), relative to Dir, clean and slash-separated
+	// override and env files, and the files they include or extend),
+	// relative to Dir, clean and slash-separated
 	// (api.FileRoot.Definition).
 	DefinitionFiles []string
 }

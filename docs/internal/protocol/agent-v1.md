@@ -631,7 +631,8 @@ The `compose.*` payloads are defined in `internal/protocol/compose.go`
 `bind` root, a clean relative project directory and the project name); the
 agent resolves it against its verified roots (#28) and refuses anything
 outside them (`forbidden_path`). Definition files (compose files, override
-files, `.env` and service `env_file`s inside the project directory) travel
+files, `.env`, the files the compose files `include` or `extends` and
+service `env_file`s inside the project directory) travel
 with SHA-256 hashes; `SourceHash` identifies a definition identically on
 both sides. `compose.write` creates a new project directory (never over an
 existing one: `conflict`) or replaces definition files when the current

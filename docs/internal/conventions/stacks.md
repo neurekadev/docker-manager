@@ -79,6 +79,19 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   `stacks.DefinitionPaths` (observed revision, creation names, every
   Compose and env file; clean project-relative paths), which
   `StackFileRoot` hands to the file manager, and `stacks.IsDefinitionFile`.
+- Files a definition loads through `include` (nested includes and their
+  env files) and `extends: file:` are definition files (#283): the agent
+  walks them itself (`compose.walkReferences`, `refs.go`; compose-go
+  reports only first-level declarations) before compose-go reads them, so
+  they land in `Project.DefinitionFiles`, every source snapshot (revisions,
+  the deploy's snapshot) and the observed revision `DefinitionPaths` reads.
+  One outside the project directory (also through a symlink), a remote
+  include and a relative `project_directory`/`env_file` of an include
+  inside an included file are refused (`unsupported_compose_feature`),
+  never read. compose-go reads included and extended files from disk even
+  when loading from `ProjectSpec.Content`, so `ValidateSourceSave` checks
+  only the files a validation loads from memory (`loadedFromContent`:
+  Compose, override and interpolation env files).
 - Stop/start containers of a stack (backups #10, updates #20, migrations
   #35, container actions #9) with `internal/agent/lifecycle`
   (`GraphFromContainers` + `EngineRuntime`, `Stop`/`Start`/`Restart`/`Resume`),

@@ -198,7 +198,9 @@ A stack's **definition files** (`api.FileRoot.IsDefinition`) are
 (`compose.<name>.yaml`) and `.env` **at the project root** (also before the
 stack declares them), plus every file the stack declares wherever it is:
 the files of its newest observed revision, every Compose file (`-f`, e.g.
-`deploy/compose.prod.yml`) and every service `env_file` (e.g.
+`deploy/compose.prod.yml`), every file a Compose file loads through
+`include` or `extends: file:` (e.g. `lib/db.yaml`; one outside the project
+directory makes the definition invalid) and every service `env_file` (e.g.
 `config/app.env`), project-relative and cleaned
 (`stacks.DefinitionPaths`, carried as `api.FileRoot.Definition`; paths
 outside the project directory are left out). They may hold secrets (#25:

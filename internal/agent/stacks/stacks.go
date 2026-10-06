@@ -237,14 +237,17 @@ func handlerError(err error) error {
 // definitionFiles lists a project's definition files (absolute paths
 // inside dir, sorted) and warnings for definition files outside it. When
 // the project does not load (broken YAML), it falls back to the Compose
-// files and env files found by name, so a broken definition can still be
-// read and recorded.
+// files and env files found by name and the files they include or extend
+// that can be resolved, so a broken definition can still be read and
+// recorded.
 func definitionFiles(ctx context.Context, ref protocol.ProjectRef, dir string) ([]string, []protocol.ComposeIssue) {
 	var files []string
 	var issues []protocol.ComposeIssue
-	if p, err := compose.LoadProject(ctx, specOf(ref, dir)); err == nil {
+	spec := specOf(ref, dir)
+	if p, err := compose.LoadProject(ctx, spec); err == nil {
 		files = p.DefinitionFiles
 	} else {
+		files = compose.ReferencedFiles(spec)
 		for _, name := range append(slices.Clone(compose.DefaultConfigFiles), "compose.override.yaml", "compose.override.yml",
 			"docker-compose.override.yaml", "docker-compose.override.yml", ".env") {
 			files = append(files, filepath.Join(dir, name))

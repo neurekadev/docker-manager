@@ -91,7 +91,10 @@ values). Neither writes anything, records a revision or runs a job.
   `name:` other than the stack's). Audited as `stack.validate`.
 
 A file-manager save of a definition file is validated before it is written
-(`ValidateSourceSave`, 422 `invalid_definition`).
+(`ValidateSourceSave`, 422 `invalid_definition`): the Compose, override and
+interpolation env files, which the validation loads from memory. Included
+and extended files are not: compose-go reads them from disk, so the check
+would judge their old content (the deploy reports their errors).
 
 ### Deploy
 
@@ -113,7 +116,9 @@ agent's steps:
    `pull: always` and `build: true` sets `pullBase`, so the build pulls
    newer base images too.
 4. `apply`: snapshot the definition files, **load the project from exactly
-   those bytes**, re-read the files and retry when they changed meanwhile,
+   those bytes** (included and extended files, which compose-go reads from
+   disk, are in the snapshot and covered by the re-read), re-read the files
+   and retry when they changed meanwhile,
    then Compose `up` (dependency order and `depends_on` conditions by the
    SDK). A container recreated because its definition or image changed
    inherits its predecessor's anonymous volumes, like `docker compose up`
@@ -583,7 +588,8 @@ changes; the UI then offers Deploy instead of Start.
   directory (the stacks volume path the agent reported in its capabilities,
   or the registered root) with the stack's definition files
   (`DefinitionPaths`: observed revision, creation names, every Compose and
-  env file, clean and project-relative), which the file manager guards
+  env file, clean and project-relative; the observed revision holds the
+  files the Compose files include or extend), which the file manager guards
   with `stack.definition.*` wherever they are; `StackSourcesChanged` records a `file_manager`
   revision in the background after a save of a definition file (never
   deploys). `Root`, `IsDefinitionFile` and `RecordFileSave` remain for

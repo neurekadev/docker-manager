@@ -170,8 +170,10 @@ directory as working directory:
 `LoadProject` also loads a definition **from memory** (`ProjectSpec.Content`:
 Compose files and env files by project-relative path), as if it were in the
 project directory, for validation before anything is written (#7). A
-loaded `Project` lists its definition files (Compose files, env files and
-service `env_file`s), its resolved bind mounts and each service's display
+loaded `Project` lists its definition files (Compose files, env files,
+the files they pull in through `include` and `extends: file:`, which must
+lie inside the project directory, and service `env_file`s), its resolved
+bind mounts and each service's display
 label `docker-manager.description` (also read under its legacy key
 `dev.neureka.docker-manager.description`; the former `.icon` label is
 ignored: services have no icon). Every service gets

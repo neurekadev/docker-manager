@@ -234,8 +234,9 @@ automated tests any more**.
 | named volumes and networks (local drivers) | supported |
 | relative bind mounts (`./data`) | resolved against the project directory; correct Engine paths require the #28 identical-path layout |
 | Compose `configs` / `secrets` from files | supported by the SDK (file-based; no Docker Manager secret store, #25) |
-| `include` / `extends` with local files | supported |
-| remote `include` (Git, OCI) | not loadable (no remote loaders) |
+| `include` / `extends` with local files | supported inside the project directory; the files are definition files (revisions, deploy snapshot, `stack.definition.*`); a file outside it, also through a symlink, is **rejected** (`TestRefusesReferencesOutsideTheProject`) |
+| remote `include` (Git, OCI) | **rejected** |
+| relative `project_directory` / `env_file` of an `include` inside an included file | **rejected**: compose-go resolves it against the agent's working directory |
 | `post_start` / `pre_stop` hooks | run by the SDK through the Engine's exec API |
 | private registry images | per-operation credentials in memory (`TestCredentialsNeverTouchDisk`) |
 | top-level `version:` | accepted with an "obsolete" warning |
