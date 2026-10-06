@@ -316,14 +316,11 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 	for _, f := range src.Files {
 		files = append(files, protocol.SourceFile{Path: f.Path, Content: f.Content})
 	}
-	// Files the revision lacks are removed only when their name alone makes
-	// the definition load them: an included or extended file (or a service
-	// env_file) counts only while a Compose file refers to it, and a
-	// revision recorded before such files were captured (#283) may still
-	// refer to them.
+	// The agent keeps a file the restored definition still includes or
+	// extends (a revision recorded before #283 lacks those).
 	var remove []string
 	for _, f := range cur.Snapshot.Files {
-		if loadedByName(st, f.Path) && !slices.ContainsFunc(src.Files, func(r domain.StackFile) bool { return r.Path == f.Path }) {
+		if !slices.ContainsFunc(src.Files, func(r domain.StackFile) bool { return r.Path == f.Path }) {
 			remove = append(remove, f.Path)
 		}
 	}

@@ -636,7 +636,8 @@ service `env_file`s inside the project directory) travel
 with SHA-256 hashes; `SourceHash` identifies a definition identically on
 both sides. `compose.write` creates a new project directory (never over an
 existing one: `conflict`) or replaces definition files when the current
-definition still has the expected hash (`conflict` otherwise).
+definition still has the expected hash (`conflict` otherwise); a path of
+`remove` that the written definition still includes or extends is kept.
 
 Failures answer with `error` (correlationId = request). Requests the agent
 does not serve fail with `unsupported_request`. The agent serves at most

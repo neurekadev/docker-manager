@@ -3,6 +3,7 @@ package stacks_test
 import (
 	"context"
 	"errors"
+	"os"
 	"slices"
 	"testing"
 
@@ -178,14 +179,16 @@ func TestIncludedFilesAreDefinitionFiles(t *testing.T) {
 	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, "lib/cache/cache.yaml", []byte("services:\n  cache:\n    image: redis:8\n")); err != nil {
 		t.Errorf("the save fixing an included file: %v", err)
 	}
-	// Restoring a revision without the included file keeps it on disk: it
-	// counts only while a Compose file refers to it (and a revision recorded
-	// before included files were captured may still refer to it).
+	// Restoring a revision that does not include the file removes it: it
+	// would otherwise stay behind without the definition's protection.
 	revs := revisions(t, h, st.ID)
 	if _, err := h.svc.Restore(h.ctx, alice, h.get(st.ID), revs[len(revs)-1].ID); err != nil {
 		t.Fatal(err)
 	}
-	if h.read("shop", "compose.yaml") != shopYAML || h.read("shop", "lib", "cache", "cache.yaml") != "services: [broken" {
-		t.Error("the restore did not write compose.yaml back or removed the included file")
+	if h.read("shop", "compose.yaml") != shopYAML {
+		t.Error("the restore did not write compose.yaml back")
+	}
+	if _, err := os.Stat(h.path("shop", "lib", "cache", "cache.yaml")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the included file the restored revision does not use is still there: %v", err)
 	}
 }

@@ -91,9 +91,11 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   never read. compose-go reads included and extended files from disk even
   when loading from `ProjectSpec.Content`, so `ValidateSourceSave` checks
   only the files a validation loads from memory (`loadedByName`: Compose,
-  override and interpolation env files), and `Restore` removes only those
-  when the revision lacks them (included and extended files count only
-  while a Compose file refers to them; older revisions lack them).
+  override and interpolation env files). `compose.write` keeps a file of
+  its `Remove` list that the written definition still includes or extends
+  (`compose.ReferencedFiles`): a revision recorded before #283 lacks those
+  files but still loads them; everything else a restored revision lacks is
+  removed, so nothing stays behind unguarded.
 - Stop/start containers of a stack (backups #10, updates #20, migrations
   #35, container actions #9) with `internal/agent/lifecycle`
   (`GraphFromContainers` + `EngineRuntime`, `Stop`/`Start`/`Restart`/`Resume`),

@@ -138,12 +138,10 @@ func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath strin
 }
 
 // loadedByName reports whether the definition loads relPath because of
-// its name or the stack's declaration, whether or not a Compose file
-// refers to it: a Compose or override file, or an env file used for
-// interpolation. A validation from memory (compose.validate with files)
-// loads exactly these from the submitted bytes. Other definition files
-// (included and extended files, service env_files) count only while a
-// Compose file refers to them.
+// its name or the stack's declaration: a Compose or override file, or an
+// env file used for interpolation. A validation from memory
+// (compose.validate with files) loads exactly these from the submitted
+// bytes.
 func loadedByName(st domain.Stack, relPath string) bool {
 	rel, ok := cleanProjectPath(relPath)
 	return ok && slices.Contains(DefinitionPaths(st, nil), rel)
