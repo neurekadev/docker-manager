@@ -340,6 +340,39 @@ func TestWriteCreateNeverOverwrites(t *testing.T) {
 	}
 }
 
+// TestWriteReplaceKeepsReferencedRemovals (#283): a restore of a revision
+// recorded before included files were captured lists them for removal;
+// the agent keeps the ones the written definition still includes and
+// removes the rest.
+func TestWriteReplaceKeepsReferencedRemovals(t *testing.T) {
+	e := newEnv(t)
+	dir := filepath.Join(e.root, "shop")
+	writeTree(t, dir, map[string]string{
+		"compose.yaml": "include: [lib/db.yaml, lib/old.yaml]\nservices:\n  web:\n    image: nginx:1\n",
+		"lib/db.yaml":  "services:\n  db:\n    image: db:1\n",
+		"lib/old.yaml": "services:\n  old:\n    image: old:1\n",
+	})
+	cur, err := call[protocol.ComposeReadOutput](t, e.svc.Requests()[protocol.ReqComposeRead], protocol.ComposeReadInput{Stack: ref("shop")})
+	if err != nil || len(cur.Snapshot.Files) != 3 {
+		t.Fatalf("read %+v %v", cur, err)
+	}
+	restored := []protocol.SourceFile{{Path: "compose.yaml", Content: []byte("include: [lib/db.yaml]\nservices:\n  web:\n    image: nginx:0\n")}}
+	out, err := call[protocol.ComposeWriteOutput](t, e.svc.Requests()[protocol.ReqComposeWrite], protocol.ComposeWriteInput{Stack: ref("shop"),
+		Mode: protocol.WriteReplace, Files: restored, ExpectHash: cur.Snapshot.Hash, Remove: []string{"lib/db.yaml", "lib/old.yaml"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "lib", "db.yaml")); err != nil {
+		t.Errorf("the file the restored compose.yaml includes was removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "lib", "old.yaml")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the file nothing includes any more is still there: %v", err)
+	}
+	if len(out.Snapshot.Files) != 2 {
+		t.Errorf("snapshot after the write %+v", out.Snapshot.Files)
+	}
+}
+
 func TestWriteReplaceNeedsExpectedHash(t *testing.T) {
 	e := newEnv(t)
 	dir := filepath.Join(e.root, "shop")
@@ -415,6 +448,47 @@ func TestReadDefinition(t *testing.T) {
 	out, err = call[protocol.ComposeReadOutput](t, e.svc.Requests()[protocol.ReqComposeRead], protocol.ComposeReadInput{Stack: ref("gone")})
 	if err != nil || !out.Missing {
 		t.Errorf("missing project: %+v %v", out, err)
+	}
+}
+
+// TestReadDefinitionWithIncludes (#283): the definition snapshot holds
+// the files the Compose files include and extend, so revisions and the
+// deploy's snapshot capture them. A definition including a file outside
+// the project directory is still read (without that file) but refused.
+func TestReadDefinitionWithIncludes(t *testing.T) {
+	e := newEnv(t)
+	dir := filepath.Join(e.root, "app")
+	writeTree(t, dir, map[string]string{
+		"compose.yaml": "include: [lib/db.yaml]\nservices:\n  web:\n    extends: {file: base.yaml, service: web}\n",
+		"lib/db.yaml":  "services:\n  db:\n    image: db:1\n",
+		"base.yaml":    "services:\n  web:\n    image: web:1\n",
+	})
+	writeTree(t, e.root, map[string]string{"shared.yaml": "services:\n  shared:\n    image: shared:1\n"})
+	read := func() []string {
+		t.Helper()
+		out, err := call[protocol.ComposeReadOutput](t, e.svc.Requests()[protocol.ReqComposeRead], protocol.ComposeReadInput{Stack: ref("app")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var paths []string
+		for _, f := range out.Snapshot.Files {
+			paths = append(paths, f.Path)
+		}
+		return paths
+	}
+	if got, want := read(), []string{"base.yaml", "compose.yaml", "lib/db.yaml"}; !slices.Equal(got, want) {
+		t.Errorf("definition files %v, want %v", got, want)
+	}
+	writeTree(t, dir, map[string]string{"compose.yaml": "include: [lib/db.yaml, ../shared.yaml]\n"})
+	if got, want := read(), []string{"compose.yaml", "lib/db.yaml"}; !slices.Equal(got, want) {
+		t.Errorf("definition files %v, want %v", got, want)
+	}
+	v, err := call[protocol.ComposeValidateOutput](t, e.svc.Requests()[protocol.ReqComposeValidate], protocol.ComposeValidateInput{Stack: ref("app")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Valid || len(v.Errors) != 1 || v.Errors[0].Code != protocol.IssueUnsupportedFeature || !strings.Contains(v.Errors[0].Message, "outside the project directory") {
+		t.Errorf("validation %+v", v)
 	}
 }
 

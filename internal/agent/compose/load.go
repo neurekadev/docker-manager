@@ -48,8 +48,8 @@ type ProjectSpec struct {
 	// separated) that are loaded from memory instead of disk: Compose files
 	// and the env files used for interpolation. The directory itself need
 	// not exist (validation before a stack is created, #7); anything else the
-	// project references (service env_files, build contexts, includes)
-	// still resolves on disk.
+	// project references (service env_files, build contexts, included and
+	// extended files) still resolves on disk.
 	Content map[string][]byte
 	// SkipEnvFiles does not read service env_files (validation of a
 	// submitted definition: their values never matter there, and a
@@ -68,8 +68,11 @@ type Project struct {
 	// Warnings are non-fatal findings (e.g. the obsolete top-level version key).
 	Warnings []string
 	// DefinitionFiles are the absolute paths of the project's definition:
-	// Compose files, env files used for interpolation and service env_files
-	// (sorted, deduplicated; files outside Dir are included, callers decide).
+	// Compose files, env files used for interpolation, the files they pull
+	// in through include (nested too, with the include's env files) and
+	// extends: file:, and service env_files (sorted, deduplicated; service
+	// env_files outside Dir are included, callers decide; included and
+	// extended files outside Dir are refused, see references).
 	DefinitionFiles []string
 	// Binds are the resolved bind mounts of the enabled services.
 	Binds []Bind
@@ -208,6 +211,12 @@ func LoadProject(ctx context.Context, spec ProjectSpec) (*Project, error) {
 	if spec.Name != "" && spec.Name != loader.NormalizeProjectName(spec.Name) {
 		return nil, engine.Errorf(op, engine.CodeInvalidProject, "invalid project name %q (use lower-case letters, digits, '-' and '_')", spec.Name)
 	}
+	// Included and extended files are walked before compose-go reads them:
+	// one outside the project directory is refused, never read.
+	refs := walkReferences(spec, configs, envFiles)
+	if refs.refused != nil {
+		return nil, refs.refused
+	}
 	contents := map[string][]byte{}
 	var model *types.Project
 	if spec.Content != nil {
@@ -218,6 +227,9 @@ func LoadProject(ctx context.Context, spec ProjectSpec) (*Project, error) {
 	if err != nil {
 		return nil, engine.WrapCode(op, engine.CodeInvalidProject, err)
 	}
+	if refs.incomplete {
+		return nil, engine.Errorf(op, engine.CodeInvalidProject, "could not resolve the files the Compose files include or extend")
+	}
 	model = withComposeLabels(model, envFiles)
 
 	p := &Project{Name: model.Name, Dir: model.WorkingDir, ConfigFiles: model.ComposeFiles, EnvFiles: envFiles, model: model}
@@ -225,7 +237,7 @@ func LoadProject(ctx context.Context, spec ProjectSpec) (*Project, error) {
 		return nil, err
 	}
 	p.Warnings = obsoleteVersionWarnings(configs, contents)
-	defs := append(slices.Clone(configs), envFiles...)
+	defs := append(append(slices.Clone(configs), envFiles...), refs.files...)
 	for _, name := range model.ServiceNames() {
 		s := model.Services[name]
 		si := ServiceInfo{Name: name, Image: api.GetImageNameOrDefault(s, model.Name), Build: s.Build != nil, Profiles: s.Profiles,

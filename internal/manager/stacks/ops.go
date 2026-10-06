@@ -316,6 +316,8 @@ func (s *Service) Restore(ctx context.Context, p authz.Principal, st domain.Stac
 	for _, f := range src.Files {
 		files = append(files, protocol.SourceFile{Path: f.Path, Content: f.Content})
 	}
+	// The agent keeps a file the restored definition still includes or
+	// extends (a revision recorded before #283 lacks those).
 	var remove []string
 	for _, f := range cur.Snapshot.Files {
 		if !slices.ContainsFunc(src.Files, func(r domain.StackFile) bool { return r.Path == f.Path }) {

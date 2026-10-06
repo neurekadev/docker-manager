@@ -3,6 +3,7 @@ package stacks_test
 import (
 	"context"
 	"errors"
+	"os"
 	"slices"
 	"testing"
 
@@ -145,5 +146,49 @@ func TestDefinitionPaths(t *testing.T) {
 		if got := stacks.IsDefinitionFile(st, []string{"stack.yml"}, p); got != want {
 			t.Errorf("IsDefinitionFile(%q) = %v, want %v", p, got, want)
 		}
+	}
+}
+
+// TestIncludedFilesAreDefinitionFiles (#283): a Compose file the
+// definition includes is recorded with it and guarded as a definition
+// file, a change to it or to a directory above it records a revision, and
+// a save of it is not validated from memory (the validation would load
+// its old content from disk, so a broken included file could not be
+// fixed).
+func TestIncludedFilesAreDefinitionFiles(t *testing.T) {
+	h := newHarness(t)
+	st := h.create("shop", shopYAML, shopEnv)
+	h.write("services:\n  cache:\n    image: redis:7\n", "shop", "lib", "cache", "cache.yaml")
+	h.write("include: [lib/cache/cache.yaml]\n"+shopYAML, "shop", "compose.yaml")
+	if rev, err := h.svc.ExternalChange(h.ctx, st.ID, []string{"compose.yaml"}, false); err != nil || rev == nil {
+		t.Fatalf("compose.yaml change %+v %v", rev, err)
+	}
+	root, err := h.svc.Root(h.ctx, st.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(root.DefinitionFiles, "lib/cache/cache.yaml") ||
+		!stacks.IsDefinitionFile(h.get(st.ID), root.DefinitionFiles, "./lib/cache/cache.yaml") {
+		t.Fatalf("definition files %v lack the included file", root.DefinitionFiles)
+	}
+	h.write("services:\n  cache:\n    image: redis:8\n", "shop", "lib", "cache", "cache.yaml")
+	if rev, err := h.svc.ExternalChange(h.ctx, st.ID, []string{"lib"}, false); err != nil || rev == nil {
+		t.Fatalf("a change below lib/ %+v %v", rev, err)
+	}
+	h.write("services: [broken", "shop", "lib", "cache", "cache.yaml")
+	if err := h.svc.ValidateSourceSave(h.ctx, st.ID, "lib/cache/cache.yaml", []byte("services:\n  cache:\n    image: redis:8\n")); err != nil {
+		t.Errorf("the save fixing an included file: %v", err)
+	}
+	// Restoring a revision that does not include the file removes it: it
+	// would otherwise stay behind without the definition's protection.
+	revs := revisions(t, h, st.ID)
+	if _, err := h.svc.Restore(h.ctx, alice, h.get(st.ID), revs[len(revs)-1].ID); err != nil {
+		t.Fatal(err)
+	}
+	if h.read("shop", "compose.yaml") != shopYAML {
+		t.Error("the restore did not write compose.yaml back")
+	}
+	if _, err := os.Stat(h.path("shop", "lib", "cache", "cache.yaml")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the included file the restored revision does not use is still there: %v", err)
 	}
 }

@@ -34,7 +34,8 @@ Binding conventions (split out of CLAUDE.md). Read this file when your change to
   is `api.FileRoot.IsDefinition`: the root-level Compose names
   (`api.IsDefinitionFile`) plus `FileRoot.Definition`, which
   `files.Service.StackRoot` fills from `stacks.DefinitionPaths` (observed
-  revision, Compose and env files; clean root-relative paths). Never
+  revision, with the files the Compose files include or extend, Compose
+  and env files; clean root-relative paths). Never
   decide by name alone, and report job changes with `jobSourcePaths`.
 - **Symlinks in stacks:** stack scopes follow no symlink
   (`fsroot.Options.NoFollow`, set by the agent): resolve paths in `fsroot`

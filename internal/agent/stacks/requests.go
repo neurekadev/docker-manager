@@ -173,11 +173,20 @@ func (s *Service) write(ctx context.Context, input json.RawMessage) (any, error)
 			return nil, err
 		}
 	}
+	// A file the written definition still includes or extends is kept: a
+	// revision recorded before included and extended files were captured
+	// (#283) lacks them but still loads them. Anything else the revision
+	// lacks is removed, so nothing it no longer loads stays behind as an
+	// unguarded file.
+	referenced := compose.ReferencedFiles(specOf(in.Stack, dir))
 	for _, r := range in.Remove {
 		if slices.ContainsFunc(in.Files, func(f protocol.SourceFile) bool { return f.Path == r }) {
 			continue
 		}
 		p := filepath.Join(dir, filepath.FromSlash(r))
+		if slices.Contains(referenced, p) {
+			continue
+		}
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, &session.HandlerError{Code: protocol.CodeInternal, Message: "could not remove " + r}
 		}
