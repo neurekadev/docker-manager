@@ -80,8 +80,8 @@ type references struct {
 
 func walkReferences(spec ProjectSpec, configs, envFiles []string) *references {
 	w := &references{dir: spec.Dir, visited: map[string]bool{}}
-	if real, err := filepath.EvalSymlinks(spec.Dir); err == nil {
-		w.realDir = real
+	if resolved, err := filepath.EvalSymlinks(spec.Dir); err == nil {
+		w.realDir = resolved
 	}
 	env, err := topLevelEnv(spec, envFiles)
 	if err != nil {
@@ -350,8 +350,8 @@ func (w *references) inside(file, what, path string) bool {
 	r, err := filepath.Rel(w.dir, path)
 	ok := err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) && !filepath.IsAbs(r)
 	if ok && w.realDir != "" {
-		if real, err := filepath.EvalSymlinks(path); err == nil {
-			r, err = filepath.Rel(w.realDir, real)
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			r, err = filepath.Rel(w.realDir, resolved)
 			ok = err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) && !filepath.IsAbs(r)
 		}
 	}

@@ -32,7 +32,7 @@ services:
 		".env": "PART=app\n",
 		// An included file resolves its own includes and extends from its
 		// directory, and interpolates with its directory's .env.
-		"inc/app.yaml":         "include: [nested/${NESTED}.yaml]\nservices:\n  app:\n    extends: {file: shared.yaml, service: app}\n",
+		"inc/app.yaml":         "include:\n  - nested/${NESTED}.yaml\nservices:\n  app:\n    extends: {file: shared.yaml, service: app}\n",
 		"inc/.env":             "NESTED=more\n",
 		"inc/nested/more.yaml": "services:\n  more:\n    image: more:1\n",
 		"inc/shared.yaml":      "services:\n  app:\n    image: app:1\n",
@@ -96,7 +96,7 @@ func TestRefusesReferencesOutsideTheProject(t *testing.T) {
 			"inc.yaml": "services:\n  a:\n    image: a\n"}, want: "env file"},
 		"nested include": {files: map[string]string{"compose.yaml": "include: [inc/inc.yaml]\n", "inc/inc.yaml": "include: [../../outside.yaml]\n"},
 			want: "inc/inc.yaml includes"},
-		"interpolated": {files: map[string]string{"compose.yaml": "include: [${WHERE}/outside.yaml]\n", ".env": "WHERE=..\n"},
+		"interpolated": {files: map[string]string{"compose.yaml": "include:\n  - ${WHERE}/outside.yaml\n", ".env": "WHERE=..\n"},
 			want: "outside the project directory"},
 		"symlink": {files: map[string]string{"compose.yaml": "include: [inc.yaml]\n"}, link: "inc.yaml", want: "outside the project directory"},
 		"remote":  {files: map[string]string{"compose.yaml": "include: [oci://registry.example/app:1]\n"}, want: "remote include"},
