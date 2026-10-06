@@ -102,9 +102,9 @@ func (s *Service) stacksDir(ctx context.Context, environmentID string) (string, 
 // on disk is read from the agent, the file is replaced (or added) and the
 // whole project is validated like a new stack's. Errors refuse the save
 // (invalid_definition); warnings do not. Only the files a validation loads
-// from memory are checked (loadedFromContent): other definition files
-// (included and extended Compose files, service env_files) would be read
-// from disk, so the check would judge their old content.
+// from memory are checked (loadedByName): other definition files (included
+// and extended Compose files, service env_files) would be read from disk,
+// so the check would judge their old content.
 func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath string, content []byte) error {
 	st, err := store.GetStack(ctx, s.db, stackID)
 	if errors.Is(err, domain.ErrStackNotFound) {
@@ -113,7 +113,7 @@ func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath strin
 	if err != nil {
 		return err
 	}
-	if !loadedFromContent(st, relPath) {
+	if !loadedByName(st, relPath) {
 		return nil
 	}
 	var cur protocol.ComposeReadOutput
@@ -137,10 +137,14 @@ func (s *Service) ValidateSourceSave(ctx context.Context, stackID, relPath strin
 	return nil
 }
 
-// loadedFromContent reports whether a validation from memory
-// (compose.validate with files) loads relPath's submitted bytes: a Compose
-// or override file, or an env file used for interpolation.
-func loadedFromContent(st domain.Stack, relPath string) bool {
+// loadedByName reports whether the definition loads relPath because of
+// its name or the stack's declaration, whether or not a Compose file
+// refers to it: a Compose or override file, or an env file used for
+// interpolation. A validation from memory (compose.validate with files)
+// loads exactly these from the submitted bytes. Other definition files
+// (included and extended files, service env_files) count only while a
+// Compose file refers to them.
+func loadedByName(st domain.Stack, relPath string) bool {
 	rel, ok := cleanProjectPath(relPath)
 	return ok && slices.Contains(DefinitionPaths(st, nil), rel)
 }

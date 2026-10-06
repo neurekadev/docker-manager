@@ -123,6 +123,18 @@ func TestRefusesReferencesOutsideTheProject(t *testing.T) {
 	}
 }
 
+// TestWalksInMemoryComposeFilesNamedWithDots: a declared Compose file
+// whose name starts with ".." is inside the project, so its in-memory
+// content is walked (and its outside include refused).
+func TestWalksInMemoryComposeFilesNamedWithDots(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "app")
+	_, err := LoadProject(testutil.Context(t), ProjectSpec{Dir: dir, Name: "p", ConfigFiles: []string{"..compose.yml"},
+		Content: map[string][]byte{"..compose.yml": []byte("include: [../outside.yaml]\n")}})
+	if engine.CodeOf(err) != engine.CodeUnsupportedFeature || !strings.Contains(err.Error(), "outside the project directory") {
+		t.Fatalf("LoadProject = %v (%s), want the outside include refused", err, engine.CodeOf(err))
+	}
+}
+
 // TestReferencedFilesOfABrokenDefinition: a definition that does not load
 // still names the included and extended files inside the project, so they
 // are read and recorded with it.

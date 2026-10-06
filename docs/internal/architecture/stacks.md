@@ -177,7 +177,10 @@ differs from the one its container runs.
 definition (recording it first if it was new, so no edit is lost), writes
 the revision's files with `compose.write` in `replace` mode —
 compare-and-set on the current hash (`409 stack_definition_changed`
-otherwise) and removing definition files the revision does not have — and
+otherwise) and removing the Compose, override and interpolation env files
+the revision does not have (never included, extended or service `env_file`
+files: they count only while a Compose file refers to them, and revisions
+recorded before #283 lack included and extended files) — and
 records a `restore` revision. It **never deploys**: `deployOffered` tells
 the client to offer one.
 

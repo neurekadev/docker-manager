@@ -90,8 +90,10 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   inside an included file are refused (`unsupported_compose_feature`),
   never read. compose-go reads included and extended files from disk even
   when loading from `ProjectSpec.Content`, so `ValidateSourceSave` checks
-  only the files a validation loads from memory (`loadedFromContent`:
-  Compose, override and interpolation env files).
+  only the files a validation loads from memory (`loadedByName`: Compose,
+  override and interpolation env files), and `Restore` removes only those
+  when the revision lacks them (included and extended files count only
+  while a Compose file refers to them; older revisions lack them).
 - Stop/start containers of a stack (backups #10, updates #20, migrations
   #35, container actions #9) with `internal/agent/lifecycle`
   (`GraphFromContainers` + `EngineRuntime`, `Stop`/`Start`/`Restart`/`Resume`),

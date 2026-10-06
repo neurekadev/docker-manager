@@ -368,9 +368,10 @@ func (w *references) refuse(format string, args ...any) {
 	}
 }
 
-// rel names a file of the project by its project-relative path.
+// rel names a file of the project by its project-relative path (the key
+// of spec.Content), and a file outside it by its absolute path.
 func (w *references) rel(file string) string {
-	if r, err := filepath.Rel(w.dir, file); err == nil && !strings.HasPrefix(r, "..") {
+	if r, err := filepath.Rel(w.dir, file); err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) {
 		return filepath.ToSlash(r)
 	}
 	return file
