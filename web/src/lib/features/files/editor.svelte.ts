@@ -3,7 +3,7 @@
 //
 //   - a refetched content whose ETag differs is an external change: a
 //     clean buffer takes the new text; an unsaved buffer is kept and the
-//     tab shows the conflict (Compare, Reload from disk, Save as…,
+//     tab shows the conflict (Compare, Reload from disk, Save As,
 //     Overwrite). Text is never replaced silently.
 //   - Save sends If-Match with the ETag the buffer was loaded from; a 412
 //     (someone else saved) becomes the same conflict. While a conflict is

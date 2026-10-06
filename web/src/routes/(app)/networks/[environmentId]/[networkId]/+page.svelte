@@ -143,7 +143,7 @@
 		if (!n || n.builtin || n.protection || !can(n.actions, 'network.remove')) return [];
 		return [
 			{
-				label: 'Remove…',
+				label: 'Remove',
 				tone: 'danger',
 				onSelect: () =>
 					remover?.request({

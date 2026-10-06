@@ -197,11 +197,13 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   anything ending in ".", "!" or "?". The manager's notification labels
   follow the same rule (`alerts/message.go`).
 - **Action wording** (#282): one name per action everywhere (menu, button,
-  confirmation, tray, docs); "and", never "&" ("Pull and Deploy"); a menu
-  item that opens a dialog or confirmation ends in "…" ("Delete…",
-  "Force Recreate…"), buttons do not; a confirmation's button names the
-  verb and the noun ("Stop Stack", "Recreate Container", "Force Recreate
-  Service").
+  confirmation, tray, docs); "and", never "&" ("Pull and Deploy"); no menu
+  item or button ends in "…", also when it opens a dialog or confirmation
+  ("Delete", "Force Recreate"; progress text such as "Saving…" keeps it);
+  a row menu does not repeat its row's name (a service row's "Start",
+  "Logs"; its trigger says "More Actions for web"); a confirmation's
+  button names the verb and the noun ("Stop Stack", "Recreate Container",
+  "Force Recreate Service").
 - **Gates** (#282): offer an action only with the capability the server
   checks for it (a deploy after creating a stack: `stack.deploy` in the
   environment; a stack from a template: `stack.create` somewhere; a
@@ -267,7 +269,7 @@ Guides: `docs/internal/design/README.md` (tokens, components, copy, a11y),
   never in the menu; on phones Settings shows only its cog
   (`Button iconOnPhones`) so the header stays one row. Detail pages: removal
   is the last entry of the header's "More Actions" menu after a separator
-  (a standalone container's **Recreate…** right before it) and absent for
+  (a standalone container's **Recreate** right before it) and absent for
   Docker Manager's own objects (the notice says why); no
   removal-preview card on the page (the removal dialog shows the
   server's preview); labels through `LabelsCard` (system labels such as

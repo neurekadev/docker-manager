@@ -94,7 +94,7 @@
 	function menu(im: Image): MenuEntry[] {
 		const out: MenuEntry[] = [{ label: 'Open', href: routes.image(im.environmentId, im.id) }];
 		if (can(im.actions, 'image.tag'))
-			out.push({ label: 'Tag…', onSelect: () => host?.request(im, 'tag') });
+			out.push({ label: 'Tag', onSelect: () => host?.request(im, 'tag') });
 		if (im.repoTags[0] && scope.can('container.create', im.environmentId))
 			out.push({
 				label: 'Create Container',
@@ -104,7 +104,7 @@
 		if (can(im.actions, 'image.remove') && !im.protection)
 			out.push(
 				{ separator: true },
-				{ label: 'Remove…', tone: 'danger', onSelect: () => host?.request(im, 'remove') }
+				{ label: 'Remove', tone: 'danger', onSelect: () => host?.request(im, 'remove') }
 			);
 		return out;
 	}

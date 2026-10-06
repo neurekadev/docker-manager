@@ -1,6 +1,6 @@
 // The editor's external-change conflict (#15, #22 brief): the banner reads
 // "<file> changed on disk. Your edits are kept." with Compare, Reload From
-// Disk, Save As… and Overwrite (confirmed); Save stays off until resolved.
+// Disk, Save As and Overwrite (confirmed); Save stays off until resolved.
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
@@ -76,7 +76,7 @@ describe('EditorPane', () => {
 		);
 		const banner = await screen.findByRole('alert');
 		expect(banner).toHaveTextContent('compose.yaml changed on disk. Your edits are kept.');
-		for (const name of ['Compare', 'Reload From Disk', 'Save As…', 'Overwrite'])
+		for (const name of ['Compare', 'Reload From Disk', 'Save As', 'Overwrite'])
 			expect(screen.getByRole('button', { name })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 		expect(session.current?.buffer).toBe('a: mine\n');

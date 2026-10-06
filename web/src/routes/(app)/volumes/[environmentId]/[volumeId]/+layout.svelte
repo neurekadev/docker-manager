@@ -133,7 +133,7 @@
 		if (!v || v.protection || !can(v.actions, 'volume.remove')) return [];
 		return [
 			{
-				label: 'Remove…',
+				label: 'Remove',
 				tone: 'danger',
 				onSelect: () =>
 					remover?.request({

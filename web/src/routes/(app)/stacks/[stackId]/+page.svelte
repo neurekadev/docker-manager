@@ -196,7 +196,7 @@
 			{#snippet actions()}
 				{#if canDeploy && hasOrphans}
 					<Button size="sm" onclick={() => ctx.removeOrphans.request()}
-						>Remove Old Containers…</Button
+						>Remove Orphans and Deploy</Button
 					>
 				{/if}
 				{#if canDeploy && !onlyOrphans}

@@ -243,7 +243,7 @@ describe('StackHeader', () => {
 			within(menu)
 				.getAllByRole('menuitem')
 				.map((i) => i.textContent?.trim())
-		).toEqual(['Migrate', 'Edit Details', 'Delete…']);
+		).toEqual(['Migrate', 'Edit Details', 'Delete']);
 	});
 
 	it('offers neither Take Down nor Rename in the overflow menu', async () => {
@@ -390,7 +390,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		const tray = header(stack());
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		expect(
 			within(dialog).getByText('Keeps its volumes and the project directory on the host.')
@@ -411,7 +411,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		header(stack());
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		expect(
 			within(dialog).queryByRole('checkbox', { name: /Also Remove the Stack’s Volumes/ })
@@ -422,7 +422,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		const tray = header(stack({ actions: [...ALL, 'volume.remove'] }));
 		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Delete…' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Delete Silo?' });
 		const box = within(dialog).getByRole('checkbox', {
 			name: /Also Remove the Stack’s Volumes/
@@ -535,8 +535,8 @@ describe('StackHeader', () => {
 			expect.stringMatching(/^Pull and Deploy/),
 			'Pull',
 			'---',
-			'Force Recreate…',
-			'Deploy and Remove Old Containers…'
+			'Force Recreate',
+			'Remove Orphans and Deploy'
 		]);
 	});
 
@@ -627,22 +627,16 @@ describe('StackHeader', () => {
 			expect.stringMatching(/^Pull and Deploy/),
 			'Pull',
 			'---',
-			'Force Recreate…',
-			'Deploy and Remove Old Containers…'
+			'Force Recreate',
+			'Remove Orphans and Deploy'
 		]);
-		await user.click(
-			within(menu).getByRole('menuitem', { name: 'Deploy and Remove Old Containers…' })
-		);
+		await user.click(within(menu).getByRole('menuitem', { name: 'Remove Orphans and Deploy' }));
 		const dialog = await screen.findByRole('alertdialog', {
-			name: 'Deploy Silo and remove old containers?'
+			name: 'Remove orphans from Silo and deploy?'
 		});
 		expect(seen.filter((s) => s.method === 'POST')).toEqual([]);
-		await user.click(
-			within(dialog).getByRole('button', { name: 'Deploy and Remove Old Containers' })
-		);
-		await waitFor(() =>
-			expect(tray.jobs[0]?.title).toBe('Deploy Silo and Remove Old Containers')
-		);
+		await user.click(within(dialog).getByRole('button', { name: 'Remove Orphans and Deploy' }));
+		await waitFor(() => expect(tray.jobs[0]?.title).toBe('Remove Orphans and Deploy Silo'));
 		expect(seen.find((s) => s.method === 'POST')).toMatchObject({
 			path: '/api/v1/stacks/st-1/deployments',
 			body: { removeOrphans: true }
@@ -653,7 +647,7 @@ describe('StackHeader', () => {
 		const user = setup();
 		const tray = header(stack());
 		await user.click(await screen.findByRole('button', { name: /^More Deploy Options/ }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Force Recreate…' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Force Recreate' }));
 		const dialog = await screen.findByRole('alertdialog', { name: 'Force Recreate Silo?' });
 		expect(
 			within(dialog).getByText(
@@ -996,13 +990,13 @@ describe('ServicesTable', () => {
 		render(ServicesTable, { props: { stack: stack(), services, usage: null, onoperate } });
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
-			'Restart web',
-			'Stop web…'
+			'Restart',
+			'Stop'
 		]);
-		await user.click(screen.getByRole('menuitem', { name: 'Stop web…' }));
+		await user.click(screen.getByRole('menuitem', { name: 'Stop' }));
 		expect(onoperate).toHaveBeenCalledWith('web', 'stop');
 		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
-		await user.click(await screen.findByRole('menuitem', { name: 'Start worker' }));
+		await user.click(await screen.findByRole('menuitem', { name: 'Start' }));
 		expect(onoperate).toHaveBeenCalledWith('worker', 'start');
 	});
 
@@ -1022,7 +1016,7 @@ describe('ServicesTable', () => {
 		});
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
-			'Stop web…'
+			'Stop'
 		]);
 		await user.keyboard('{Escape}');
 		expect(
@@ -1046,11 +1040,11 @@ describe('ServicesTable', () => {
 		});
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
 		expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent?.trim())).toEqual([
-			'Restart web',
-			'Stop web…',
-			'Force Recreate web…'
+			'Restart',
+			'Stop',
+			'Force Recreate'
 		]);
-		const item = screen.getByRole('menuitem', { name: 'Force Recreate web…' });
+		const item = screen.getByRole('menuitem', { name: 'Force Recreate' });
 		expect(item).not.toHaveAttribute('aria-disabled', 'true');
 		await user.click(item);
 		expect(onrecreate).toHaveBeenCalledWith('web');
@@ -1068,9 +1062,7 @@ describe('ServicesTable', () => {
 			}
 		});
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
-		expect(
-			screen.queryByRole('menuitem', { name: 'Force Recreate web…' })
-		).not.toBeInTheDocument();
+		expect(screen.queryByRole('menuitem', { name: 'Force Recreate' })).not.toBeInTheDocument();
 		unmount();
 		render(ServicesTable, {
 			props: { stack: stack(), services, usage: null, onrecreate: vi.fn(), readOnly: true }
@@ -1248,7 +1240,7 @@ describe('ServicesTable', () => {
 			routes.container('env-1', 'silo-web-1')
 		);
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
-		expect(await screen.findByRole('menuitem', { name: 'Logs of web' })).toHaveAttribute(
+		expect(await screen.findByRole('menuitem', { name: 'Logs' })).toHaveAttribute(
 			'href',
 			routes.stackLogs('st-1', 'web')
 		);
@@ -1283,17 +1275,17 @@ describe('ServicesTable', () => {
 			}
 		});
 		await user.click(screen.getByRole('button', { name: 'More Actions for web' }));
-		expect(await screen.findByRole('menuitem', { name: 'Restart web' })).toHaveAttribute(
+		expect(await screen.findByRole('menuitem', { name: 'Restart' })).toHaveAttribute(
 			'aria-disabled',
 			'true'
 		);
-		expect(screen.getByRole('menuitem', { name: 'Stop web…' })).toHaveAttribute(
+		expect(screen.getByRole('menuitem', { name: 'Stop' })).toHaveAttribute(
 			'aria-disabled',
 			'true'
 		);
 		await user.keyboard('{Escape}');
 		await user.click(screen.getByRole('button', { name: 'More Actions for worker' }));
-		expect(await screen.findByRole('menuitem', { name: 'Start worker' })).not.toHaveAttribute(
+		expect(await screen.findByRole('menuitem', { name: 'Start' })).not.toHaveAttribute(
 			'aria-disabled',
 			'true'
 		);

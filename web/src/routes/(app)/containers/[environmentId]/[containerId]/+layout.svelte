@@ -171,13 +171,13 @@
 		const destructive: MenuEntry[] = [];
 		if (has('recreate'))
 			destructive.push({
-				label: 'Recreate…',
+				label: 'Recreate',
 				tone: 'danger',
 				onSelect: () => host?.request(c, 'recreate')
 			});
 		if (has('remove'))
 			destructive.push({
-				label: 'Remove…',
+				label: 'Remove',
 				tone: 'danger',
 				onSelect: () => host?.request(c, 'remove')
 			});
