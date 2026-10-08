@@ -198,18 +198,30 @@ func holdsSource(dest, src string) bool {
 
 // swapIn replaces dest with the entry at from: dest is renamed aside and
 // removed only once from took its place; if that fails dest is put back,
-// so a failure never loses dest (nor a source inside it).
-func swapIn(r *scopeRoot, dest, from string) error {
+// so a failure never loses dest (nor a source inside it). left is where
+// the old dest still is when it could not be put back (with an error) or
+// not fully removed (without one); "" otherwise.
+func swapIn(r *scopeRoot, dest, from string) (left string, err error) {
 	old := join(path.Dir(dest), tempName())
 	if err := r.root.Rename(dest, old); err != nil {
-		return classify(err, dest)
+		return "", classify(err, dest)
 	}
 	if err := r.root.Rename(from, dest); err != nil {
-		_ = r.root.Rename(old, dest)
-		return classify(err, dest)
+		if r.root.Rename(old, dest) != nil {
+			return old, classify(err, dest)
+		}
+		return "", classify(err, dest)
 	}
-	_ = r.root.RemoveAll(old)
-	return nil
+	if r.root.RemoveAll(old) != nil {
+		return old, nil
+	}
+	return "", nil
+}
+
+// leftOver is the item message of a replacement whose old entry is left
+// under a temporary name.
+func leftOver(dest, left string) string {
+	return fmt.Sprintf("replaced, but the old %s could not be fully removed: it is left at %s", dest, left)
 }
 
 // isDir reports whether rel is a directory (in NoFollow scopes reached
@@ -267,13 +279,25 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 				it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
 				continue
 			}
-			if err := swapIn(r, dest, from); err != nil {
-				_ = r.root.Rename(from, src)
-				it.add(src, domain.ItemFailed, codeOf(err))
-				continue
+			left, err := swapIn(r, dest, from)
+			switch {
+			case err != nil && left != "":
+				it.add(src, domain.ItemFailed, fmt.Sprintf("%s: %s is kept at %s and the entry moved at %s", codeOf(err), dest, left, from))
+				changed = append(changed, src, dest)
+			case err != nil:
+				if r.root.Rename(from, src) != nil {
+					it.add(src, domain.ItemFailed, fmt.Sprintf("%s: the entry moved is kept at %s", codeOf(err), from))
+					changed = append(changed, src)
+				} else {
+					it.add(src, domain.ItemFailed, codeOf(err))
+				}
+			case left != "":
+				it.add(src, domain.ItemFailed, leftOver(dest, left))
+				changed = append(changed, src, dest)
+			default:
+				it.add(src, domain.ItemSucceeded, dest)
+				changed = append(changed, src, dest)
 			}
-			it.add(src, domain.ItemSucceeded, dest)
-			changed = append(changed, src, dest)
 			continue
 		}
 		if replace {
@@ -376,9 +400,20 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 				it.add(src, domain.ItemFailed, "not replaced: some entries could not be copied")
 				continue
 			}
-			if err := swapIn(r, dest, into); err != nil {
+			left, err := swapIn(r, dest, into)
+			switch {
+			case err != nil:
 				_ = r.root.RemoveAll(into)
-				it.add(src, domain.ItemFailed, codeOf(err))
+				msg := codeOf(err)
+				if left != "" {
+					msg = fmt.Sprintf("%s: %s is kept at %s", msg, dest, left)
+					changed = append(changed, dest)
+				}
+				it.add(src, domain.ItemFailed, msg)
+				continue
+			case left != "":
+				it.add(src, domain.ItemFailed, leftOver(dest, left))
+				changed = append(changed, dest)
 				continue
 			}
 		}

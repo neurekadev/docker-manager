@@ -165,7 +165,9 @@ the source (`a/a` copied or moved onto `a`) moves the source out first
 (a move) or copies beside it first (a copy), then swaps it in: the folder
 is renamed aside and removed only once the new entry took its place, and
 put back if that fails. A copy with failed entries replaces nothing (the
-item fails), so the source is never lost. The policy applies to every item of
+item fails), so the source is never lost. Should putting the folder back,
+or removing it after the swap, fail too, the item fails and its message
+names the temporary path the data is kept at. The policy applies to every item of
 one request; the UI asks per item (apply-to-all is off by default) and sends
 one request per decision group. Destructive and recursive actions are
 previewed and confirmed in the UI before the request.
