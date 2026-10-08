@@ -908,7 +908,10 @@ shared `internal/fsroot` operations), the manager side
   never 100 before the end) and `message` = `"<n> of <total> · <member>"`
   (the member being worked on, control characters replaced, shortened
   from the front to 160 bytes; names only). A tar.gz extraction counts
-  its members in a first pass that writes nothing. Extraction validates
+  its members in a first pass that writes nothing and decompresses at
+  most the extraction's own byte budget (past it, on damage or past the
+  entry limit the total is unknown and the message has no "of <total>").
+  Extraction validates
   every entry (no `../`, absolute or drive names, symlinks only when they
   resolve inside the root from where they land, hard links only to
   earlier members, no devices, no setuid bits, nothing below a refused

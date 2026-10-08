@@ -196,6 +196,22 @@ func holdsSource(dest, src string) bool {
 	return strings.HasPrefix(src, dest+"/")
 }
 
+// swapIn replaces dest with the entry at from: dest is renamed aside and
+// removed only once from took its place; if that fails dest is put back,
+// so a failure never loses dest (nor a source inside it).
+func swapIn(r *scopeRoot, dest, from string) error {
+	old := join(path.Dir(dest), tempName())
+	if err := r.root.Rename(dest, old); err != nil {
+		return classify(err, dest)
+	}
+	if err := r.root.Rename(from, dest); err != nil {
+		_ = r.root.Rename(old, dest)
+		return classify(err, dest)
+	}
+	_ = r.root.RemoveAll(old)
+	return nil
+}
+
 // isDir reports whether rel is a directory (in NoFollow scopes reached
 // without following symlinks; elsewhere a symlink to a directory inside
 // the root counts).
@@ -242,22 +258,26 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 			it.add(src, domain.ItemSkipped, "exists")
 			continue
 		}
-		from := src
 		if replace && holdsSource(dest, src) {
 			// The entry being replaced holds the source (monsters/monsters
-			// onto monsters): take the source out of it first, or removing
-			// it would remove the source too.
-			from = join(path.Dir(dest), tempName())
+			// onto monsters): take the source out of it first, then swap
+			// it in (removing the entry first would remove the source).
+			from := join(path.Dir(dest), tempName())
 			if err := r.root.Rename(src, from); err != nil {
 				it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
 				continue
 			}
+			if err := swapIn(r, dest, from); err != nil {
+				_ = r.root.Rename(from, src)
+				it.add(src, domain.ItemFailed, codeOf(err))
+				continue
+			}
+			it.add(src, domain.ItemSucceeded, dest)
+			changed = append(changed, src, dest)
+			continue
 		}
 		if replace {
 			if err := r.root.RemoveAll(dest); err != nil {
-				if from != src {
-					_ = r.root.Rename(from, src)
-				}
 				it.add(src, domain.ItemFailed, codeOf(classify(err, dest)))
 				continue
 			}
@@ -265,7 +285,7 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 		// Rename works on the entry itself: a symlink moves as a symlink.
 		// (Both paths were checked above; os.Root has no rename between
 		// two directory handles.)
-		if err := r.root.Rename(from, dest); err != nil {
+		if err := r.root.Rename(src, dest); err != nil {
 			it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
 			continue
 		}
@@ -314,7 +334,8 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 		}
 		// The entry being replaced may hold the source (monsters/monsters
 		// onto monsters): then the copy is made beside it first and
-		// replaces it at the end, or removing it would remove the source.
+		// swapped in only when complete, or removing the entry would
+		// remove the source.
 		into := dest
 		if replace && holdsSource(dest, src) {
 			into = join(path.Dir(dest), tempName())
@@ -349,13 +370,15 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			continue
 		}
 		if into != dest {
-			err := r.root.RemoveAll(dest)
-			if err == nil {
-				err = r.root.Rename(into, dest)
-			}
-			if err != nil {
+			if failed > 0 {
+				// Replacing would lose the entries that failed to copy.
 				_ = r.root.RemoveAll(into)
-				it.add(src, domain.ItemFailed, codeOf(classify(err, dest)))
+				it.add(src, domain.ItemFailed, "not replaced: some entries could not be copied")
+				continue
+			}
+			if err := swapIn(r, dest, into); err != nil {
+				_ = r.root.RemoveAll(into)
+				it.add(src, domain.ItemFailed, codeOf(err))
 				continue
 			}
 		}

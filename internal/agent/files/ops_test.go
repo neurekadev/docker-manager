@@ -635,13 +635,39 @@ func TestOverwriteTheFolderHoldingTheSource(t *testing.T) {
 	if res.Outcome != "succeeded" || f.readFile("copies/inner.txt") != "inner" || f.exists("copies/outer.txt") || f.exists("copies/copies") {
 		t.Fatalf("copy: %+v\n%s", res, f.snapshot())
 	}
+	f.noTemporaryEntries()
+}
+
+// TestOverwriteKeepsTheHoldingFolderWhenTheCopyIsIncomplete: a copy of
+// keep/keep onto keep where some entries can't be copied (hard-linked
+// files are refused) leaves keep, and the source in it, as it was.
+func TestOverwriteKeepsTheHoldingFolderWhenTheCopyIsIncomplete(t *testing.T) {
+	f := newFixture(t)
+	f.write("keep/outer.txt", "outer")
+	f.write("keep/keep/a.txt", "a")
+	f.write("keep/keep/linked.txt", "l")
+	if err := os.Link(filepath.Join(f.root, "keep", "keep", "linked.txt"), filepath.Join(f.root, "keep", "keep", "other.txt")); err != nil {
+		t.Skipf("hard links: %v", err)
+	}
+	res := f.runJob(jobspec.FilesCopy, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"keep/keep"}, Destination: ".", Conflict: protocol.ConflictOverwrite})
+	if res.Outcome != "partial" || !f.itemFailed(res, "keep/keep") || f.readFile("keep/outer.txt") != "outer" ||
+		f.readFile("keep/keep/a.txt") != "a" || f.readFile("keep/keep/linked.txt") != "l" {
+		t.Fatalf("incomplete copy: %+v\n%s", res, f.snapshot())
+	}
+	f.noTemporaryEntries()
+}
+
+// noTemporaryEntries fails when a job left a .docker-manager-* entry in
+// the volume root.
+func (f *fixture) noTemporaryEntries() {
+	f.t.Helper()
 	entries, err := os.ReadDir(f.root)
 	if err != nil {
-		t.Fatal(err)
+		f.t.Fatal(err)
 	}
 	for _, e := range entries {
 		if strings.HasPrefix(e.Name(), ".docker-manager-") {
-			t.Fatalf("temporary entry left behind: %s", e.Name())
+			f.t.Fatalf("temporary entry left behind: %s", e.Name())
 		}
 	}
 }

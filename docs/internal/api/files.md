@@ -162,8 +162,10 @@ At most 1000 conflicts are listed and 100 000 entries counted.
 folder is a duplicate: only `keep_both` does it (any other policy, and any
 move onto itself, fails for that item). Overwriting a folder that holds
 the source (`a/a` copied or moved onto `a`) moves the source out first
-(a move) or copies beside it first (a copy), then replaces the folder: it
-never removes the source. The policy applies to every item of
+(a move) or copies beside it first (a copy), then swaps it in: the folder
+is renamed aside and removed only once the new entry took its place, and
+put back if that fails. A copy with failed entries replaces nothing (the
+item fails), so the source is never lost. The policy applies to every item of
 one request; the UI asks per item (apply-to-all is off by default) and sends
 one request per decision group. Destructive and recursive actions are
 previewed and confirmed in the UI before the request.

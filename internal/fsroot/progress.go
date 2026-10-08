@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -133,27 +134,59 @@ func (t readTally) ReadAt(b []byte, off int64) (int, error) {
 	return n, err
 }
 
-// countTarMembers counts the members of a tar.gz archive in a quick pass
-// that writes nothing (best effort, for the progress: it stops past limit
-// and at damage, which the extraction itself reports).
-func countTarMembers(ctx context.Context, f io.ReaderAt, size int64, limit int) int {
+// errCountBudget ends a member count that decompressed its budget.
+var errCountBudget = errors.New("fsroot: member count budget spent")
+
+// countReader bounds the decompressed bytes of a member count and ends
+// it when ctx does (a skipped member is read through, however large).
+type countReader struct {
+	ctx  context.Context
+	r    io.Reader
+	left int64
+}
+
+func (c *countReader) Read(b []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if c.left <= 0 {
+		return 0, errCountBudget
+	}
+	if int64(len(b)) > c.left {
+		b = b[:c.left]
+	}
+	n, err := c.r.Read(b)
+	c.left -= int64(n)
+	return n, err
+}
+
+// countTarMembers counts the members of a tar.gz archive in a pass that
+// writes nothing, decompressing at most budget bytes (the extraction's own
+// limit, so a bomb costs no more here than there). Best effort, for the
+// progress: 0 (unknown) past limit members, past the budget, on
+// cancellation and on damage, which the extraction itself reports.
+func countTarMembers(ctx context.Context, f io.ReaderAt, size int64, limit int, budget int64) int {
 	gz, err := gzip.NewReader(bufio.NewReader(io.NewSectionReader(f, 0, size)))
 	if err != nil {
 		return 0
 	}
 	gz.Multistream(false)
-	tr := tar.NewReader(gz)
+	tr := tar.NewReader(&countReader{ctx: ctx, r: gz, left: budget})
 	n := 0
-	for n <= limit && ctx.Err() == nil {
+	for {
 		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return n
+		}
 		if err != nil {
-			break
+			return 0
 		}
 		if h.Typeflag != tar.TypeXGlobalHeader {
-			n++
+			if n++; n > limit {
+				return 0
+			}
 		}
 	}
-	return n
 }
 
 // archiveSize counts the members an archive of paths gets and the bytes

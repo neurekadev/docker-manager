@@ -1,6 +1,10 @@
 package fsroot
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -96,5 +100,57 @@ func TestJobProgressWaitsForTheFirstMember(t *testing.T) {
 	p.next("a")
 	if len(*out) != 1 || (*out)[0] != (sent{4, "1 of 2 · a"}) {
 		t.Fatalf("sent %+v", *out)
+	}
+}
+
+// tarGz is a tar.gz archive of n files of size bytes each.
+func tarGz(t *testing.T, n, size int) *bytes.Reader {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	for i := range n {
+		if err := tw.WriteHeader(&tar.Header{Name: strings.Repeat("f", i+1), Mode: 0o644, Size: int64(size), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(make([]byte, size)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return bytes.NewReader(buf.Bytes())
+}
+
+func TestCountTarMembersStopsAtItsBudgetsAndOnCancellation(t *testing.T) {
+	ctx := context.Background()
+	f := tarGz(t, 3, 64<<10)
+	if n := countTarMembers(ctx, f, f.Size(), 100, 1<<20); n != 3 {
+		t.Fatalf("count = %d, want 3", n)
+	}
+	// A member decompressing past the budget (a bomb) is not read through.
+	if n := countTarMembers(ctx, f, f.Size(), 100, 32<<10); n != 0 {
+		t.Fatalf("count past the byte budget = %d, want 0 (unknown)", n)
+	}
+	if n := countTarMembers(ctx, f, f.Size(), 2, 1<<20); n != 0 {
+		t.Fatalf("count past the member limit = %d, want 0 (unknown)", n)
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if n := countTarMembers(cancelled, f, f.Size(), 100, 1<<20); n != 0 {
+		t.Fatalf("cancelled count = %d, want 0", n)
+	}
+}
+
+func TestExtractBudgetIsTheRatioWithinFloorAndCap(t *testing.T) {
+	lim := Limits{MaxExtractBytes: 1000, MaxExtractRatio: 10, ExtractRatioFloor: 100}
+	for size, want := range map[int64]int64{5: 100, 50: 500, 500: 1000} {
+		if got := extractBudget(lim, size); got != want {
+			t.Fatalf("extractBudget(%d) = %d, want %d", size, got, want)
+		}
 	}
 }

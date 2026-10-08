@@ -164,7 +164,7 @@ func (s *Service) scanArchive(ctx context.Context, r *scopeRoot, lim Limits, rel
 		}
 	case kindTarGz:
 		if prog != nil {
-			prog.total = countTarMembers(ctx, of, fi.Size(), lim.MaxArchiveEntries)
+			prog.total = countTarMembers(ctx, of, fi.Size(), lim.MaxArchiveEntries, extractBudget(lim, fi.Size()))
 		}
 		gz, err := gzip.NewReader(bufio.NewReader(f))
 		if err != nil {
@@ -232,6 +232,13 @@ func (b *budget) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// extractBudget is the most an extraction of an archive of size bytes may
+// write: MaxExtractRatio times its size (at least ExtractRatioFloor), at
+// most MaxExtractBytes.
+func extractBudget(lim Limits, size int64) int64 {
+	return min(max(lim.ExtractRatioFloor, size*lim.MaxExtractRatio), lim.MaxExtractBytes)
+}
+
 // extractReport receives per-entry outcomes (names only).
 type extractReport func(name, status, message string)
 
@@ -248,8 +255,7 @@ func (s *Service) extract(ctx context.Context, r *scopeRoot, lim Limits, archive
 	if err != nil {
 		return nil, classify(err, archiveRel)
 	}
-	limit := max(lim.ExtractRatioFloor, st.Size()*lim.MaxExtractRatio)
-	limit = min(limit, lim.MaxExtractBytes)
+	limit := extractBudget(lim, st.Size())
 	b := &budget{left: limit, max: limit}
 	if err := r.mkdirAll(destRel); err != nil {
 		return nil, err
