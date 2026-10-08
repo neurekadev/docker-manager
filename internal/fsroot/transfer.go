@@ -61,7 +61,7 @@ func (s *Service) Download(ctx context.Context, in protocol.FilesDownloadInput, 
 	case protocol.FormatZip, protocol.FormatTarGz:
 		// Coalesce the archive writer's small writes into large frames.
 		bw := bufio.NewWriterSize(w, protocol.MaxChunk/2)
-		if _, err := s.writeArchive(ctx, r, lim, paths, in.Format, bw, ""); err != nil {
+		if _, err := s.writeArchive(ctx, r, lim, paths, in.Format, bw, "", nil); err != nil {
 			return err
 		}
 		if err := bw.Flush(); err != nil {

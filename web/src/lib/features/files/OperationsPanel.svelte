@@ -7,7 +7,8 @@
 	// running file job of the root from the running list, so they show again
 	// after a reload or when the user comes back. At most MAX_JOB_STREAMS
 	// running jobs follow their own stream; the others are compact rows fed
-	// by the list.
+	// by the list. Archive and extraction jobs also show the entry they work
+	// on out of all of them, the percent and the time left (timedFileJob).
 	import X from '@lucide/svelte/icons/x';
 	import { api, unwrap, type Job } from '$lib/api/client';
 	import {
@@ -23,6 +24,7 @@
 	import { streamedIds, type TrackedEntry } from '$lib/features/jobs/active';
 	import JobRow from '$lib/features/jobs/JobRow.svelte';
 	import type { TrackedJobs } from '$lib/features/jobs/tracked.svelte';
+	import { timedFileJob } from './jobs';
 	import type { UploadQueue } from './uploads.svelte';
 
 	interface Props {
@@ -170,6 +172,7 @@
 						variant={!e.active && e.job && e.job.state !== 'succeeded'
 							? 'panel'
 							: 'inline'}
+						timing={timedFileJob(e.job?.kind)}
 						onfinish={(job) => finished(e, job)}
 					/>
 				{:else}

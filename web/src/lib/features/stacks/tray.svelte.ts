@@ -68,6 +68,19 @@ export class JobTray {
 		for (const j of fresh.toReversed()) this.add(j, describe(j));
 	}
 
+	/**
+	 * Lets the jobs of these kinds go without a toast (a tab that shows
+	 * them itself opened); `adopt` takes them again while they run.
+	 */
+	release(kinds: readonly string[]) {
+		const gone = this.jobs.filter((j) => j.kind && kinds.includes(j.kind)).map((j) => j.id);
+		if (!gone.length) return;
+		for (const id of gone) {
+			this.#seen.delete(id);
+			this.dismiss(id);
+		}
+	}
+
 	/** Forgets every job (the layout now shows another stack). */
 	reset() {
 		this.jobs = [];

@@ -22,6 +22,14 @@ describe('stackTrayMatch', () => {
 		expect(matchJob(on('stack.deploy', 's2'), m)).toBe(false);
 	});
 
+	it('leaves file jobs to the Files tab while it is open', () => {
+		const files = stackTrayMatch('s1', { files: true });
+		for (const kind of ['files.archive', 'files.extract', 'files.copy'])
+			expect(matchJob(on(kind), files)).toBe(false);
+		expect(matchJob(on('stack.deploy'), files)).toBe(true);
+		expect(matchJob(on('files.extract'), stackTrayMatch('s1'))).toBe(true);
+	});
+
 	it('leaves migrations to the migration wizard while it is open', () => {
 		expect(matchJob(on('stack.migrate'), stackTrayMatch('s1', { wizard: true }))).toBe(false);
 		expect(matchJob(on('stack.deploy'), stackTrayMatch('s1', { wizard: true }))).toBe(true);

@@ -23,6 +23,11 @@ For a lot of data, upload one archive and extract it on the server.
 Deleting can't be undone. Uploads stop if you reload or close the tab;
 copying, extracting and the other file jobs keep running on the server.
 
+Uploads and file jobs show their progress under the file list. While an
+archive is created or extracted you see which file it is on (for example
+`12 of 340 · config/app.yml`), the percent done and about how long is
+left. When a job is done, a message says so and its progress goes away.
+
 ## Edit a file
 
 Click a file to open it in the editor. It highlights the syntax, has
@@ -65,3 +70,6 @@ tab.
   stacks needs these permissions too.
 - In a stack's folder, symbolic links are listed but never followed: open
   the file or folder they point to instead.
+- Pasting a folder over the folder it is in (for example
+  `monsters/monsters` into the top folder) and choosing **Replace**
+  replaces the outer folder with the pasted one.

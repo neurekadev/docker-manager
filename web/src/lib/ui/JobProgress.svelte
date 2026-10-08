@@ -8,6 +8,9 @@
 	// build shows its BuildKit step ("Step 2/5: RUN make") with a bar that
 	// follows the steps, never the raw output; "Show Output" opens the Build
 	// Output dialog (build-output.svelte.ts) with the output in a terminal.
+	// With `timing` the step line also shows the percent done and the time
+	// left (time-left.ts): the file manager's archive and extraction jobs
+	// report "12 of 340 · config/app.yml" with their percent.
 	import { onDestroy, untrack } from 'svelte';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import CircleMinus from '@lucide/svelte/icons/circle-minus';
@@ -24,6 +27,7 @@
 	import StatusBadge from './StatusBadge.svelte';
 	import { statusInfo } from './status';
 	import { errorMessage } from './errors';
+	import { secondsLeft, timeLeftText, type ProgressMark } from './time-left';
 
 	interface Props {
 		/** Follow this job (creates a watcher)… */
@@ -42,6 +46,8 @@
 		 * shows them itself and turns them off, so they appear once.
 		 */
 		summary?: boolean;
+		/** Show the percent done and the time left while the job runs. */
+		timing?: boolean;
 	}
 
 	let {
@@ -52,7 +58,8 @@
 		onfinish,
 		options,
 		notices = appNotices,
-		summary = true
+		summary = true,
+		timing = false
 	}: Props = $props();
 
 	const TONES: Record<string, 'ok' | 'warn' | 'danger' | 'info'> = {
@@ -96,6 +103,20 @@
 			? stepText(build.step)
 			: progressText(job?.progress?.message ?? job?.progress?.step)
 	);
+	// The time left: the rate since the percent was first seen, re-estimated
+	// every second.
+	let mark = $state<ProgressMark | undefined>();
+	let now = $state(Date.now());
+	$effect(() => {
+		if (!timing || percent === undefined || w?.terminal) return;
+		if (!untrack(() => mark)) mark = { at: Date.now(), percent };
+	});
+	$effect(() => {
+		if (!timing || w?.terminal) return;
+		const t = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(t);
+	});
+	const left = $derived(timing ? secondsLeft(mark, now, percent) : undefined);
 	const failed = $derived(w?.failedItems ?? []);
 	const items = $derived(w?.items ?? []);
 	const succeeded = $derived(items.filter((i) => i.status === 'succeeded').length);
@@ -137,7 +158,15 @@
 				style="width: {percent ?? 40}%"
 			></span>
 		</div>
-		{#if stepLine}
+		{#if timing && percent !== undefined}
+			<div class="step-row">
+				<p class="step" title={stepLine}>{stepLine}</p>
+				<p class="timing num">
+					{formatPercent(percent)}{#if left !== undefined}
+						· {timeLeftText(left)}{/if}
+				</p>
+			</div>
+		{:else if stepLine}
 			<p class="step" title={stepLine}>{stepLine}</p>
 		{/if}
 		{#if job?.blockedBy}
@@ -275,6 +304,25 @@
 		font-size: var(--text-caption);
 		overflow: hidden;
 		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.step-row {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-3);
+		min-width: 0;
+	}
+
+	.step-row .step {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.timing {
+		flex: none;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
 		white-space: nowrap;
 	}
 

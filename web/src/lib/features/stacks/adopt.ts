@@ -4,19 +4,28 @@
 // tested in adopt.spec.ts.
 import type { JobMatch } from '$lib/features/jobs/active';
 import { jobKindLabel } from '$lib/features/jobs/labels';
+import { FILE_JOB_KINDS } from '$lib/features/resources/object-jobs';
 
 /** Background jobs on a stack that never show in its tray (the top bar counts them). */
 const BACKGROUND_KINDS = ['update.check', 'backup.run'];
 
 /**
- * The stack's jobs the tray shows: every kind acting on it but background
- * ones (update checks, backups), and but migrations while the migration
- * wizard (which shows them itself) is open.
+ * The stack's jobs the tray shows: every kind acting on it except
+ * background ones (update checks, backups), migrations while the
+ * migration wizard is open and file jobs while the Files tab is open
+ * (those show them themselves: no second bar).
  */
-export function stackTrayMatch(stackId: string, o: { wizard?: boolean } = {}): JobMatch {
+export function stackTrayMatch(
+	stackId: string,
+	o: { wizard?: boolean; files?: boolean } = {}
+): JobMatch {
 	return {
 		targets: [{ type: 'stack', id: stackId }],
-		excludeKinds: o.wizard ? [...BACKGROUND_KINDS, 'stack.migrate'] : BACKGROUND_KINDS
+		excludeKinds: [
+			...BACKGROUND_KINDS,
+			...(o.wizard ? ['stack.migrate'] : []),
+			...(o.files ? FILE_JOB_KINDS : [])
+		]
 	};
 }
 

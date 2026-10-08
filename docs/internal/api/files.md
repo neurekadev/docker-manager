@@ -160,7 +160,14 @@ At most 1000 conflicts are listed and 100 000 entries counted.
 `fail` (default: the item fails and is reported), `overwrite`, `skip`,
 `keep_both` (new name `name (1).ext`). Copying an entry into its own
 folder is a duplicate: only `keep_both` does it (any other policy, and any
-move onto itself, fails for that item). The policy applies to every item of
+move onto itself, fails for that item). Overwriting a folder that holds
+the source (`a/a` copied or moved onto `a`) moves the source out first
+(a move) or copies beside it first (a copy), then swaps it in: the folder
+is renamed aside and removed only once the new entry took its place, and
+put back if that fails. A copy with failed entries replaces nothing (the
+item fails), so the source is never lost. Should putting the folder back,
+or removing it after the swap, fail too, the item fails and its message
+names the temporary path the data is kept at. The policy applies to every item of
 one request; the UI asks per item (apply-to-all is off by default) and sends
 one request per decision group. Destructive and recursive actions are
 previewed and confirmed in the UI before the request.
@@ -336,7 +343,12 @@ manager (`/volumes/{env}/{volume}/files`), `?path=` in the URL.
   `fail`. Extraction and archive names ask once (one request). Delete,
   chmod/chown show the previewed impact; recursive and multi-entry deletes
   need type-to-confirm. Jobs show `JobProgress` with per-item results and
-  Cancel.
+  Cancel; archive and extraction jobs also show the member they work on
+  ("12 of 340 · config/app.yml"), the percent and the time left
+  (`timing`). A succeeded job leaves the panel at once (its toast reports
+  it); other outcomes stay until dismissed. The file manager's jobs show
+  only there: the stack tray and the volume page leave them out while the
+  Files tab is open.
 - **Editor:** tabs, CodeMirror languages by name (select to change),
   search/replace, line wrap, Format (YAML with comments, JSON; a split
   button whose menu offers Minify, JSON only and off for YAML with the

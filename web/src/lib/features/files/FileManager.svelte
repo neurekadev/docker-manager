@@ -321,8 +321,9 @@
 	function onJobFinish(job: Job, title: string) {
 		refresh();
 		if (job.state === 'succeeded') {
+			// Done: the toast says so and the panel lets the job go.
 			toast.success(doneText[job.id] ?? `${title}: done`);
-			setTimeout(() => fileJobs.dismiss(job.id), 4000);
+			fileJobs.dismiss(job.id);
 		} else if (job.state === 'partial') {
 			toast.warn(`${title}: partly done`, {
 				body: 'Some items failed. The list under the files says which and why.'

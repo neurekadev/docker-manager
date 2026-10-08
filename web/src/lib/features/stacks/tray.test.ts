@@ -165,6 +165,16 @@ describe('JobTray.adopt', () => {
 		expect(tray.jobs).toHaveLength(2);
 	});
 
+	it('lets released kinds go and adopts them again while they run', () => {
+		const tray = new JobTray();
+		const list = [job('0190-2', { kind: 'files.extract' }), job('0190-1')];
+		tray.adopt(list, describeJob);
+		tray.release(['files.extract']);
+		expect(tray.jobs.map((t) => t.id)).toEqual(['0190-1']);
+		tray.adopt(list, describeJob);
+		expect(tray.jobs.map((t) => t.id)).toEqual(['0190-2', '0190-1']);
+	});
+
 	it('keeps the copy of the action that started a job', () => {
 		const tray = new JobTray();
 		tray.add(

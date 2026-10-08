@@ -33,6 +33,15 @@ export function fileJobMatch(scope: FileScope): JobMatch {
 	}
 }
 
+/**
+ * File jobs that report the entry they work on out of all of them
+ * ("12 of 340 · config/app.yml") with a percent by bytes: the panel shows
+ * the percent and the time left for them.
+ */
+export function timedFileJob(kind: string | undefined): boolean {
+	return !!kind && /^(template\.)?files\.(archive|extract)$/.test(kind);
+}
+
 /** The root-relative folder a file job acts in ("config"), "" for the root. */
 export function fileJobDir(job: Pick<Job, 'targets'>, scope: FileScope): string {
 	if (scope.kind === 'template') return '';

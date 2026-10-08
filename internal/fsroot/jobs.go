@@ -190,6 +190,40 @@ func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string
 	return "", false, false, fail(protocol.CodeAlreadyExists, "%s already exists", dest)
 }
 
+// holdsSource reports whether dest, an entry to be replaced, is a
+// directory above src: removing it first would remove the source too.
+func holdsSource(dest, src string) bool {
+	return strings.HasPrefix(src, dest+"/")
+}
+
+// swapIn replaces dest with the entry at from: dest is renamed aside and
+// removed only once from took its place; if that fails dest is put back,
+// so a failure never loses dest (nor a source inside it). left is where
+// the old dest still is when it could not be put back (with an error) or
+// not fully removed (without one); "" otherwise.
+func swapIn(r *scopeRoot, dest, from string) (left string, err error) {
+	old := join(path.Dir(dest), tempName())
+	if err := r.root.Rename(dest, old); err != nil {
+		return "", classify(err, dest)
+	}
+	if err := r.root.Rename(from, dest); err != nil {
+		if r.root.Rename(old, dest) != nil {
+			return old, classify(err, dest)
+		}
+		return "", classify(err, dest)
+	}
+	if r.root.RemoveAll(old) != nil {
+		return old, nil
+	}
+	return "", nil
+}
+
+// leftOver is the item message of a replacement whose old entry is left
+// under a temporary name.
+func leftOver(dest, left string) string {
+	return fmt.Sprintf("replaced, but the old %s could not be fully removed: it is left at %s", dest, left)
+}
+
 // isDir reports whether rel is a directory (in NoFollow scopes reached
 // without following symlinks; elsewhere a symlink to a directory inside
 // the root counts).
@@ -234,6 +268,36 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 			continue
 		case skip:
 			it.add(src, domain.ItemSkipped, "exists")
+			continue
+		}
+		if replace && holdsSource(dest, src) {
+			// The entry being replaced holds the source (monsters/monsters
+			// onto monsters): take the source out of it first, then swap
+			// it in (removing the entry first would remove the source).
+			from := join(path.Dir(dest), tempName())
+			if err := r.root.Rename(src, from); err != nil {
+				it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
+				continue
+			}
+			left, err := swapIn(r, dest, from)
+			switch {
+			case err != nil && left != "":
+				it.add(src, domain.ItemFailed, fmt.Sprintf("%s: %s is kept at %s and the entry moved at %s", codeOf(err), dest, left, from))
+				changed = append(changed, src, dest)
+			case err != nil:
+				if r.root.Rename(from, src) != nil {
+					it.add(src, domain.ItemFailed, fmt.Sprintf("%s: the entry moved is kept at %s", codeOf(err), from))
+					changed = append(changed, src)
+				} else {
+					it.add(src, domain.ItemFailed, codeOf(err))
+				}
+			case left != "":
+				it.add(src, domain.ItemFailed, leftOver(dest, left))
+				changed = append(changed, src, dest)
+			default:
+				it.add(src, domain.ItemSucceeded, dest)
+				changed = append(changed, src, dest)
+			}
 			continue
 		}
 		if replace {
@@ -292,7 +356,14 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			it.add(src, domain.ItemSkipped, "exists")
 			continue
 		}
-		if replace {
+		// The entry being replaced may hold the source (monsters/monsters
+		// onto monsters): then the copy is made beside it first and
+		// swapped in only when complete, or removing the entry would
+		// remove the source.
+		into := dest
+		if replace && holdsSource(dest, src) {
+			into = join(path.Dir(dest), tempName())
+		} else if replace {
 			if err := r.root.RemoveAll(dest); err != nil {
 				it.add(src, domain.ItemFailed, codeOf(classify(err, dest)))
 				continue
@@ -301,9 +372,9 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 		failed := 0
 		err = walk(ctx, r, src, true, budget, func(rel string, fi fs.FileInfo) error {
 			budget--
-			to := dest
+			to := into
 			if rel != src {
-				to = join(dest, strings.TrimPrefix(rel, src+"/"))
+				to = join(into, strings.TrimPrefix(rel, src+"/"))
 			}
 			if err := s.copyEntry(ctx, r, rel, to, fi); err != nil {
 				failed++
@@ -312,12 +383,39 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			return nil
 		})
 		if err != nil {
+			if into != dest {
+				_ = r.root.RemoveAll(into)
+			}
 			if errors.Is(err, errWalkLimit) || codeOf(err) == protocol.CodeCancelled {
 				it.finish()
 				return errMessage(err)
 			}
 			it.add(src, domain.ItemFailed, codeOf(err))
 			continue
+		}
+		if into != dest {
+			if failed > 0 {
+				// Replacing would lose the entries that failed to copy.
+				_ = r.root.RemoveAll(into)
+				it.add(src, domain.ItemFailed, "not replaced: some entries could not be copied")
+				continue
+			}
+			left, err := swapIn(r, dest, into)
+			switch {
+			case err != nil:
+				_ = r.root.RemoveAll(into)
+				msg := codeOf(err)
+				if left != "" {
+					msg = fmt.Sprintf("%s: %s is kept at %s", msg, dest, left)
+					changed = append(changed, dest)
+				}
+				it.add(src, domain.ItemFailed, msg)
+				continue
+			case left != "":
+				it.add(src, domain.ItemFailed, leftOver(dest, left))
+				changed = append(changed, dest)
+				continue
+			}
 		}
 		if failed == 0 {
 			it.add(src, domain.ItemSucceeded, dest)
@@ -410,7 +508,9 @@ func (s *Service) jobArchive(ctx context.Context, sc *jobexec.StepContext) error
 		return errMessage(classify(err, dest))
 	}
 	tmpRel := join(path.Dir(dest), tmp)
-	entries, werr := s.writeArchive(ctx, r, s.limitsFor(in.Limits), paths, in.Format, f, tmpRel)
+	prog := s.newProgress(ctx, sc)
+	prog.total, prog.size = s.archiveSize(ctx, r, paths, tmpRel)
+	entries, werr := s.writeArchive(ctx, r, s.limitsFor(in.Limits), paths, in.Format, f, tmpRel, prog)
 	werr = errors.Join(werr, f.Chmod(0o644), f.Sync(), f.Close())
 	if werr != nil {
 		_ = t.dir.Remove(tmp)
@@ -443,7 +543,7 @@ func (s *Service) jobExtract(ctx context.Context, sc *jobexec.StepContext) error
 	}
 	defer r.Close()
 	it := &items{sc: sc, ctx: ctx}
-	changed, err := s.extract(ctx, r, s.limitsFor(in.Limits), paths[0], dest, in.Conflict, func(name, status, message string) {
+	changed, err := s.extract(ctx, r, s.limitsFor(in.Limits), paths[0], dest, in.Conflict, s.newProgress(ctx, sc), func(name, status, message string) {
 		switch status {
 		case "failed":
 			it.add(name, domain.ItemFailed, message)

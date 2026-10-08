@@ -119,6 +119,24 @@ describe('OperationsPanel', () => {
 		expect(await screen.findByText('Cancelling: Copy Files in config')).toBeInTheDocument();
 	});
 
+	it('shows the entry an extraction works on with its percent', async () => {
+		const extract = job('0190-1', {
+			kind: 'files.extract',
+			progress: { percent: 42, message: '12 of 340 · config/app.yml' }
+		});
+		running = [extract, job('0190-2')];
+		details = { '0190-1': extract, '0190-2': running[1] };
+		mount();
+
+		expect(await screen.findByText('12 of 340 · config/app.yml')).toBeInTheDocument();
+		expect(screen.getByText('42%')).toBeInTheDocument();
+		// A copy reports no entries: no percent line.
+		expect(
+			await screen.findByRole('progressbar', { name: 'Copy Files in config progress' })
+		).toBeInTheDocument();
+		expect(screen.queryByText('40%')).not.toBeInTheDocument();
+	});
+
 	it('announces the end of a restored job once and keeps it until dismissed', async () => {
 		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		running = [job('0190-1')];
