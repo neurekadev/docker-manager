@@ -701,10 +701,11 @@ func TestArchiveAndExtractReportProgress(t *testing.T) {
 	}
 }
 
-// firstMessage is the first progress report with a message.
+// firstMessage is the job's first own progress report with a message
+// (the job runner's "step … started" carries no percent).
 func firstMessage(l *progressLog) *protocol.ProgressPayload {
 	for i := range l.reports {
-		if l.reports[i].Message != "" {
+		if l.reports[i].Message != "" && l.reports[i].Percent >= 0 {
 			return &l.reports[i]
 		}
 	}
