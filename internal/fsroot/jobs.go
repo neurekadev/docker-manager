@@ -190,6 +190,12 @@ func (s *Service) destinationFor(r *scopeRoot, src, destDir, name, policy string
 	return "", false, false, fail(protocol.CodeAlreadyExists, "%s already exists", dest)
 }
 
+// holdsSource reports whether dest, an entry to be replaced, is a
+// directory above src: removing it first would remove the source too.
+func holdsSource(dest, src string) bool {
+	return strings.HasPrefix(src, dest+"/")
+}
+
 // isDir reports whether rel is a directory (in NoFollow scopes reached
 // without following symlinks; elsewhere a symlink to a directory inside
 // the root counts).
@@ -236,8 +242,22 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 			it.add(src, domain.ItemSkipped, "exists")
 			continue
 		}
+		from := src
+		if replace && holdsSource(dest, src) {
+			// The entry being replaced holds the source (monsters/monsters
+			// onto monsters): take the source out of it first, or removing
+			// it would remove the source too.
+			from = join(path.Dir(dest), tempName())
+			if err := r.root.Rename(src, from); err != nil {
+				it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
+				continue
+			}
+		}
 		if replace {
 			if err := r.root.RemoveAll(dest); err != nil {
+				if from != src {
+					_ = r.root.Rename(from, src)
+				}
 				it.add(src, domain.ItemFailed, codeOf(classify(err, dest)))
 				continue
 			}
@@ -245,7 +265,7 @@ func (s *Service) jobMove(ctx context.Context, sc *jobexec.StepContext) error {
 		// Rename works on the entry itself: a symlink moves as a symlink.
 		// (Both paths were checked above; os.Root has no rename between
 		// two directory handles.)
-		if err := r.root.Rename(src, dest); err != nil {
+		if err := r.root.Rename(from, dest); err != nil {
 			it.add(src, domain.ItemFailed, codeOf(classify(err, src)))
 			continue
 		}
@@ -292,7 +312,13 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			it.add(src, domain.ItemSkipped, "exists")
 			continue
 		}
-		if replace {
+		// The entry being replaced may hold the source (monsters/monsters
+		// onto monsters): then the copy is made beside it first and
+		// replaces it at the end, or removing it would remove the source.
+		into := dest
+		if replace && holdsSource(dest, src) {
+			into = join(path.Dir(dest), tempName())
+		} else if replace {
 			if err := r.root.RemoveAll(dest); err != nil {
 				it.add(src, domain.ItemFailed, codeOf(classify(err, dest)))
 				continue
@@ -301,9 +327,9 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 		failed := 0
 		err = walk(ctx, r, src, true, budget, func(rel string, fi fs.FileInfo) error {
 			budget--
-			to := dest
+			to := into
 			if rel != src {
-				to = join(dest, strings.TrimPrefix(rel, src+"/"))
+				to = join(into, strings.TrimPrefix(rel, src+"/"))
 			}
 			if err := s.copyEntry(ctx, r, rel, to, fi); err != nil {
 				failed++
@@ -312,12 +338,26 @@ func (s *Service) jobCopy(ctx context.Context, sc *jobexec.StepContext) error {
 			return nil
 		})
 		if err != nil {
+			if into != dest {
+				_ = r.root.RemoveAll(into)
+			}
 			if errors.Is(err, errWalkLimit) || codeOf(err) == protocol.CodeCancelled {
 				it.finish()
 				return errMessage(err)
 			}
 			it.add(src, domain.ItemFailed, codeOf(err))
 			continue
+		}
+		if into != dest {
+			err := r.root.RemoveAll(dest)
+			if err == nil {
+				err = r.root.Rename(into, dest)
+			}
+			if err != nil {
+				_ = r.root.RemoveAll(into)
+				it.add(src, domain.ItemFailed, codeOf(classify(err, dest)))
+				continue
+			}
 		}
 		if failed == 0 {
 			it.add(src, domain.ItemSucceeded, dest)
@@ -410,7 +450,9 @@ func (s *Service) jobArchive(ctx context.Context, sc *jobexec.StepContext) error
 		return errMessage(classify(err, dest))
 	}
 	tmpRel := join(path.Dir(dest), tmp)
-	entries, werr := s.writeArchive(ctx, r, s.limitsFor(in.Limits), paths, in.Format, f, tmpRel)
+	prog := s.newProgress(ctx, sc)
+	prog.total, prog.size = s.archiveSize(ctx, r, paths, tmpRel)
+	entries, werr := s.writeArchive(ctx, r, s.limitsFor(in.Limits), paths, in.Format, f, tmpRel, prog)
 	werr = errors.Join(werr, f.Chmod(0o644), f.Sync(), f.Close())
 	if werr != nil {
 		_ = t.dir.Remove(tmp)
@@ -443,7 +485,7 @@ func (s *Service) jobExtract(ctx context.Context, sc *jobexec.StepContext) error
 	}
 	defer r.Close()
 	it := &items{sc: sc, ctx: ctx}
-	changed, err := s.extract(ctx, r, s.limitsFor(in.Limits), paths[0], dest, in.Conflict, func(name, status, message string) {
+	changed, err := s.extract(ctx, r, s.limitsFor(in.Limits), paths[0], dest, in.Conflict, s.newProgress(ctx, sc), func(name, status, message string) {
 		switch status {
 		case "failed":
 			it.add(name, domain.ItemFailed, message)

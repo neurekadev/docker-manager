@@ -246,8 +246,21 @@ type memJournal struct{}
 
 func (memJournal) Save(context.Context, *jobexec.State) error { return nil }
 
+// progressLog records the progress reports of a job.
+type progressLog struct{ reports []protocol.ProgressPayload }
+
+func (l *progressLog) Progress(_ context.Context, _ *jobexec.State, p protocol.ProgressPayload) {
+	l.reports = append(l.reports, p)
+}
+
 // runJob runs a file job executor like the agent job runner does.
 func (f *fixture) runJob(kind domain.JobKind, in protocol.FilesJobInput) protocol.ResultPayload {
+	f.t.Helper()
+	return f.runJobReporting(kind, in, nil)
+}
+
+// runJobReporting is runJob with the job's progress reports sent to rep.
+func (f *fixture) runJobReporting(kind domain.JobKind, in protocol.FilesJobInput, rep jobexec.Reporter) protocol.ResultPayload {
 	f.t.Helper()
 	var exec jobexec.Executor
 	for _, e := range f.svc.Executors() {
@@ -263,7 +276,7 @@ func (f *fixture) runJob(kind domain.JobKind, in protocol.FilesJobInput) protoco
 		f.t.Fatal(err)
 	}
 	st := &jobexec.State{JobID: "job-1", Attempt: 1, FencingToken: 1, Kind: kind, Input: b}
-	res, err := jobexec.Run(f.ctx, exec, st, jobexec.Options{Journal: memJournal{}})
+	res, err := jobexec.Run(f.ctx, exec, st, jobexec.Options{Journal: memJournal{}, Reporter: rep})
 	if err != nil {
 		f.t.Fatal(err)
 	}

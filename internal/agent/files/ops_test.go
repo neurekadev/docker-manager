@@ -614,3 +614,73 @@ func TestManagerLimitsInJobInputs(t *testing.T) {
 		t.Fatalf("archive over the manager's size limit: %+v", res)
 	}
 }
+
+// TestOverwriteTheFolderHoldingTheSource: moving or copying monsters/monsters
+// onto monsters (paste at the root, Overwrite) replaces monsters with the
+// inner folder; it never removes the source first.
+func TestOverwriteTheFolderHoldingTheSource(t *testing.T) {
+	f := newFixture(t)
+	f.write("monsters/outer.txt", "outer")
+	f.write("monsters/monsters/inner.txt", "inner")
+	f.write("monsters/monsters/deep/d.txt", "d")
+	res := f.runJob(jobspec.FilesMove, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"monsters/monsters"}, Destination: ".", Conflict: protocol.ConflictOverwrite})
+	if res.Outcome != "succeeded" || f.readFile("monsters/inner.txt") != "inner" || f.readFile("monsters/deep/d.txt") != "d" ||
+		f.exists("monsters/outer.txt") || f.exists("monsters/monsters") {
+		t.Fatalf("move: %+v\n%s", res, f.snapshot())
+	}
+
+	f.write("copies/outer.txt", "outer")
+	f.write("copies/copies/inner.txt", "inner")
+	res = f.runJob(jobspec.FilesCopy, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"copies/copies"}, Destination: ".", Conflict: protocol.ConflictOverwrite})
+	if res.Outcome != "succeeded" || f.readFile("copies/inner.txt") != "inner" || f.exists("copies/outer.txt") || f.exists("copies/copies") {
+		t.Fatalf("copy: %+v\n%s", res, f.snapshot())
+	}
+	entries, err := os.ReadDir(f.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".docker-manager-") {
+			t.Fatalf("temporary entry left behind: %s", e.Name())
+		}
+	}
+}
+
+// TestArchiveAndExtractReportProgress: creating and extracting an archive
+// report the member being worked on out of all of them ("1 of 3 · name")
+// with a percent below 100 (the fixture's clock stands still, so only the
+// first report of each job passes the interval).
+func TestArchiveAndExtractReportProgress(t *testing.T) {
+	f := newFixture(t)
+	f.write("site/a.txt", "a")
+	f.write("site/b.txt", "bb")
+	for _, format := range []string{protocol.FormatTarGz, protocol.FormatZip} {
+		name := "site." + format
+		log := &progressLog{}
+		res := f.runJobReporting(jobspec.FilesArchive, protocol.FilesJobInput{Scope: f.vol, Paths: []string{"site"}, Destination: name, Format: format}, log)
+		if res.Outcome != "succeeded" {
+			t.Fatalf("archive %s: %+v", format, res)
+		}
+		if p := firstMessage(log); p == nil || p.Message != "1 of 3 · site" || p.Percent != 0 {
+			t.Fatalf("archive %s progress: %+v", format, log.reports)
+		}
+		log = &progressLog{}
+		res = f.runJobReporting(jobspec.FilesExtract, protocol.FilesJobInput{Scope: f.vol, Paths: []string{name}, Destination: "out-" + format}, log)
+		if res.Outcome != "succeeded" || f.readFile("out-"+format+"/site/b.txt") != "bb" {
+			t.Fatalf("extract %s: %+v", format, res)
+		}
+		if p := firstMessage(log); p == nil || p.Message != "1 of 3 · site" || p.Percent < 0 || p.Percent > 99 {
+			t.Fatalf("extract %s progress: %+v", format, log.reports)
+		}
+	}
+}
+
+// firstMessage is the first progress report with a message.
+func firstMessage(l *progressLog) *protocol.ProgressPayload {
+	for i := range l.reports {
+		if l.reports[i].Message != "" {
+			return &l.reports[i]
+		}
+	}
+	return nil
+}

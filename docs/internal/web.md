@@ -639,7 +639,7 @@ What each view matches (the pure helpers are spec-tested next to them):
 
 | view | running jobs shown |
 | --- | --- |
-| stack page (tray, all tabs) | target `stack:<id>`, every kind but the background ones, `update.check` and `backup.run` (`stackTrayMatch`; the top bar counts them); on `/migrate` also not `stack.migrate` |
+| stack page (tray, all tabs) | target `stack:<id>`, every kind but the background ones, `update.check` and `backup.run` (`stackTrayMatch`; the top bar counts them); on `/migrate` also not `stack.migrate`; on Files not the file jobs (`FILE_JOB_KINDS`: the file manager shows them; `tray.release` lets go of ones adopted on another tab, adopted again when Files is left while they run) |
 | migration wizard | a running `stack.migrate` of the stack reopens it at the move step (`migration-resume.ts`); the wizard shows it instead of the tray and hands it back when left while it runs |
 | environment migration wizard | a running `environment.migrate` from the environment reopens it at the move step (`environmentMigrationMatch` in `environment-migration.ts`); the stacks it moves say "Migrating" in the stacks list; an ended one reopens on its result from its record (`restoredMigration`); the removals of old copies on the environment (`oldCopyRemovalMatch`) show under the result |
 | manager move wizard | a running `manager.move` (`managerMoveJobMatch`) reads the move again; the Move step shows its progress from the move (`runView`), which also survives a reload |
@@ -868,6 +868,11 @@ only wire resources to it:
   `stack:<id>`/`volume:<name>` target in its environment,
   `template.files.*` with `template:<id>`), so they come back after a
   reload, and Cancel posts `/jobs/{id}/cancellations` for any of them.
+  Archive and extraction jobs (`timedFileJob`) render `JobProgress` with
+  `timing`: the agent's message ("12 of 340 · config/app.yml"), the
+  percent and "About 2 min left" (`$lib/ui/time-left.ts`: the rate since
+  the view first saw the percent). A succeeded file job leaves the panel
+  at once; its toast reports it.
   Uploads are browser requests: their queues live in `uploads.svelte.ts`,
   one per root (`uploadQueue(key)`, `releaseUploadQueue`), so they keep
   running while the user is elsewhere in the app; while one uploads it

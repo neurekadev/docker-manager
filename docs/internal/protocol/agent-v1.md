@@ -902,7 +902,13 @@ shared `internal/fsroot` operations), the manager side
   no-clobber names), then closes with `result` = `FilesUploadResult`.
 - **Jobs** `files.archive`, `files.extract`, `files.copy`, `files.move`,
   `files.delete`, `files.metadata` take `FilesJobInput`; items report
-  per-path outcomes (at most 200, then a summary). Extraction validates
+  per-path outcomes (at most 200, then a summary). `files.archive` and
+  `files.extract` report `progress` at most every 500 ms: `percent` of the
+  bytes (files read for an archive, archive bytes read for an extraction;
+  never 100 before the end) and `message` = `"<n> of <total> · <member>"`
+  (the member being worked on, control characters replaced, shortened
+  from the front to 160 bytes; names only). A tar.gz extraction counts
+  its members in a first pass that writes nothing. Extraction validates
   every entry (no `../`, absolute or drive names, symlinks only when they
   resolve inside the root from where they land, hard links only to
   earlier members, no devices, no setuid bits, nothing below a refused

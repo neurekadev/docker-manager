@@ -16,6 +16,7 @@
 	import { activeJobsQuery, environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { matchingJobs } from '$lib/features/jobs/active';
 	import { stackJobCopy, stackTrayMatch } from '$lib/features/stacks/adopt';
+	import { FILE_JOB_KINDS } from '$lib/features/resources/object-jobs';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
 	import { provideStackPage } from '$lib/features/stacks/context';
@@ -50,6 +51,9 @@
 	const title = $derived(s ? stackTitle(s) : 'Stack');
 	// The migration wizard is a page of its own, without the tabs.
 	const wizard = $derived(page.url.pathname.endsWith('/migrate'));
+	// The Files tab shows its file jobs itself (at the bottom of the file
+	// manager): the tray leaves them out while it is open.
+	const filesTab = $derived(page.url.pathname.replace(/\/+$/, '').endsWith('/files'));
 	const tray = new JobTray();
 	const removeOrphans = new RemoveOrphansRequest();
 	// The layout stays mounted when another stack opens: start its tray empty.
@@ -62,7 +66,12 @@
 	// The stack's running jobs (also after a reload, or started elsewhere)
 	// join the tray.
 	const active = createQuery(() => ({ ...activeJobsQuery(), enabled: !!id }));
-	const running = $derived(matchingJobs(active.data, id ? stackTrayMatch(id, { wizard }) : null));
+	const running = $derived(
+		matchingJobs(active.data, id ? stackTrayMatch(id, { wizard, files: filesTab }) : null)
+	);
+	$effect(() => {
+		if (filesTab) untrack(() => tray.release(FILE_JOB_KINDS));
+	});
 	$effect(() => {
 		if (!s) return;
 		const list = running;

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { Job } from '$lib/api/client';
 import { matchJob } from '$lib/features/jobs/active';
 import type { FileScope } from './api';
-import { fileJobDir, fileJobMatch, fileJobTitle } from './jobs';
+import { fileJobDir, fileJobMatch, fileJobTitle, timedFileJob } from './jobs';
 
 type J = Pick<Job, 'kind' | 'targets' | 'environmentId' | 'policyId'>;
 
@@ -91,5 +91,19 @@ describe('fileJobTitle', () => {
 		).toBe('Archive Template Files in Web app');
 		// A path of another root is not ours to name.
 		expect(fileJobDir(stackJob('files.copy'), volume)).toBe('');
+	});
+});
+
+describe('timedFileJob', () => {
+	it('is the archive and extraction jobs of every root', () => {
+		for (const kind of [
+			'files.archive',
+			'files.extract',
+			'template.files.archive',
+			'template.files.extract'
+		])
+			expect(timedFileJob(kind)).toBe(true);
+		for (const kind of ['files.copy', 'files.delete', 'template.files.move', undefined])
+			expect(timedFileJob(kind)).toBe(false);
 	});
 });
