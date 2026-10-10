@@ -276,7 +276,7 @@ func (s *Service) previewImport(ctx context.Context, u Upload, r ImportRequest, 
 	if f.online && f.supported {
 		f.nameErr = s.opts.Stacks.CheckArchiveName(ctx, r.EnvironmentID, r.Name, own)
 		var se *domain.StackError
-		if f.nameErr != nil && !errors.Is(f.nameErr, domain.ErrStackNameTaken) && !(errors.As(f.nameErr, &se) && se.Code == domain.StackErrProjectExists) {
+		if f.nameErr != nil && !errors.Is(f.nameErr, domain.ErrStackNameTaken) && (!errors.As(f.nameErr, &se) || se.Code != domain.StackErrProjectExists) {
 			return ImportPlan{}, f.nameErr
 		}
 		q := destinationQuery(u.Manifest, u.NamedVolumes, r.Name)

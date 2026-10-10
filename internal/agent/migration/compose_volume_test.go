@@ -42,8 +42,11 @@ func TestVolumeReceiveComposeSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := v.Labels
-	if l["com.docker.compose.project"] != "boutique" || l["com.docker.compose.volume"] != "dbdata" || l["com.docker.compose.version"] == "" ||
-		l["com.docker.compose.config-hash"] == "" || l["backup.exclude"] != "true" || protocol.LabelValue(l, protocol.LabelMigration) != migID {
+	// The version label is compose's own version (empty unless compose's
+	// internal version is set at build time), so only its presence is
+	// checked.
+	if _, version := l["com.docker.compose.version"]; l["com.docker.compose.project"] != "boutique" || l["com.docker.compose.volume"] != "dbdata" ||
+		!version || l["com.docker.compose.config-hash"] == "" || l["backup.exclude"] != "true" || protocol.LabelValue(l, protocol.LabelMigration) != migID {
 		t.Errorf("labels %v", l)
 	}
 	if got := dst.Host.Tree(v.Mountpoint); got["PG_VERSION"].UID != 999 {

@@ -191,6 +191,9 @@ describe('ExportArchiveDialog', () => {
 		await waitFor(() => expect(checks).toEqual([{}, { excludeVolumes: ['data'] }]), {
 			timeout: 2000
 		});
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Export Archive' })).toBeEnabled()
+		);
 		await user.click(screen.getByRole('button', { name: 'Export Archive' }));
 		await waitFor(() => expect(started).toHaveLength(1));
 		expect(started[0]).toMatchObject({ body: { excludeVolumes: ['data'] } });

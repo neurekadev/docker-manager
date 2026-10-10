@@ -317,7 +317,7 @@ func (w *Writer) AddPart(p Part, r io.Reader) (PartStats, error) {
 			return st, err
 		}
 		if hdr.Typeflag == tar.TypeReg {
-			n, err := io.Copy(w.tw, tr)
+			n, err := io.CopyN(w.tw, tr, hdr.Size)
 			if err != nil {
 				return st, err
 			}

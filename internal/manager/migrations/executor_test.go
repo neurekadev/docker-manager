@@ -340,7 +340,9 @@ func TestAgentReconnectResumesAtPartBoundary(t *testing.T) {
 	}
 	dieOnce(w.src.Host, "PG_VERSION", true, func() {
 		w.agents.kill(srcEnv)
-		go w.agents.revive(srcEnv)
+		// Back at once: a revive in a goroutine raced the driven clock,
+		// which can use up the reconnect window before it runs.
+		w.agents.revive(srcEnv)
 	})
 	res := w.runDriven(j)
 	if res.Outcome != jobexec.OutcomeSucceeded {
