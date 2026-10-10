@@ -37,7 +37,9 @@ jobs:
       - name: Set Up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          # The toolchain line of go.mod (setup-go reads only its go line,
+          # which would pick the newest 1.27 patch; see checks-and-ci.md).
+          go-version: "1.27.1"
           cache-dependency-path: go.sum
       - name: Set Up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -79,7 +81,9 @@ jobs:
       - name: Set Up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          # The toolchain line of go.mod (setup-go reads only its go line,
+          # which would pick the newest 1.27 patch; see checks-and-ci.md).
+          go-version: "1.27.1"
           cache-dependency-path: go.sum
       - name: Set Up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -108,7 +112,9 @@ jobs:
       - name: Set Up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          # The toolchain line of go.mod (setup-go reads only its go line,
+          # which would pick the newest 1.27 patch; see checks-and-ci.md).
+          go-version: "1.27.1"
           cache-dependency-path: go.sum
       - name: Set Up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
