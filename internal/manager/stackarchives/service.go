@@ -139,6 +139,8 @@ type Service struct {
 	// bytes uploads and exports being written claim of the free space.
 	pending  map[string]string
 	reserved int64
+	// evicting are uploads set aside to make room for one being stored.
+	evicting map[string]bool
 }
 
 // New creates the service, its directories, and registers the executors
@@ -178,7 +180,8 @@ func New(o Options) (*Service, error) {
 	}
 	o.Authorizer = authz.OrDenyAll(o.Authorizer)
 	s := &Service{opts: o, clk: o.Clock, log: o.Logger.With("component", "stackarchives"),
-		uploads: map[string]*Upload{}, inUse: map[string]string{}, pending: map[string]string{}}
+		uploads: map[string]*Upload{}, inUse: map[string]string{}, pending: map[string]string{},
+		evicting: map[string]bool{}}
 	for _, d := range []string{s.exportsDir(), s.uploadsDir()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return nil, fmt.Errorf("stackarchives: %w", err)

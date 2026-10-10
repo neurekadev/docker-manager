@@ -320,6 +320,16 @@ func TestWriterRefusesParts(t *testing.T) {
 	}
 }
 
+func TestExplicitVolumeNames(t *testing.T) {
+	got := ExplicitVolumeNames(map[string][]byte{
+		"compose.yaml":          []byte("volumes:\n  data:\n    name: shop_data\n  cache: {}\n  env:\n    name: ${PREFIX}_env\n  plain:\n"),
+		"compose.override.yaml": []byte("volumes:\n  logs:\n    name: logs-forever\n"),
+	})
+	if len(got) != 2 || got["data"] != "shop_data" || got["logs"] != "logs-forever" {
+		t.Fatalf("named %v", got)
+	}
+}
+
 func TestPinnedName(t *testing.T) {
 	for _, c := range []struct {
 		files map[string][]byte

@@ -100,7 +100,7 @@ func shopManifest() Manifest {
 // TestDestinationQueryRenames: what Compose names after the project
 // follows the new name; explicit names stay.
 func TestDestinationQueryRenames(t *testing.T) {
-	q := destinationQuery(shopManifest(), "boutique")
+	q := destinationQuery(shopManifest(), nil, "boutique")
 	if q.ProjectName != "boutique" || q.Dir != "boutique" {
 		t.Fatalf("query %+v", q)
 	}
@@ -116,9 +116,14 @@ func TestDestinationQueryRenames(t *testing.T) {
 	if !slices.Equal(q.ExternalVolumes, []string{"certs"}) || !slices.Equal(q.Images, []string{"nginx", "postgres:17", "shop-web:local"}) || len(q.Ports) != 1 {
 		t.Errorf("external %v, images %v, ports %v", q.ExternalVolumes, q.Images, q.Ports)
 	}
-	same := destinationQuery(shopManifest(), "shop")
+	same := destinationQuery(shopManifest(), nil, "shop")
 	if !slices.Equal(same.Volumes, []string{"shop_dbdata", "global-shared", "shop_cache"}) {
 		t.Errorf("same name: volumes %v", same.Volumes)
+	}
+	// A name the Compose file sets itself stays, although it looks derived.
+	named := destinationQuery(shopManifest(), map[string]string{"dbdata": "shop_dbdata", "cache": "shop_cache"}, "boutique")
+	if !slices.Equal(named.Volumes, []string{"shop_dbdata", "global-shared", "shop_cache"}) {
+		t.Errorf("named volumes %v", named.Volumes)
 	}
 }
 

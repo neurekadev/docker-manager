@@ -334,11 +334,40 @@ type Reader struct {
 	// compose holds the project's root Compose files read on the way.
 	compose map[string][]byte
 	// src is the (decompressed) tar stream.
-	src io.Reader
-	// Limit bounds the bytes of the archive's files (0: none); total
-	// counts them.
-	Limit int64
+	src *countedReader
+	// limit bounds the bytes of the archive's files (0: none; SetLimit);
+	// total counts them.
+	limit int64
 	total int64
+}
+
+// countedReader counts the decompressed bytes and refuses more than max
+// (0: no bound): headers and padding count too, so no archive inflates
+// without bound, whatever its members.
+type countedReader struct {
+	r   io.Reader
+	n   int64
+	max int64
+}
+
+func (c *countedReader) Read(p []byte) (int, error) {
+	if c.max > 0 && c.n > c.max {
+		return 0, invalidf("the archive unpacks to more than %d bytes", c.max)
+	}
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
+
+// maxTrailing bounds what may follow the tar end marker (padding to a
+// record, a tool's blocking factor).
+const maxTrailing = 1 << 20
+
+// SetLimit bounds the bytes of the archive's files to n, and the whole
+// decompressed stream (headers, padding) to twice that plus a margin.
+func (r *Reader) SetLimit(n int64) {
+	r.limit = n
+	r.src.max = 2*n + 64<<20
 }
 
 // Compose files read from the project's root (definition checks).
@@ -373,7 +402,8 @@ func NewReader(r io.Reader) (*Reader, error) {
 		}
 		src = gz
 	}
-	rd := &Reader{tr: tar.NewReader(src), src: src, seen: map[string]bool{}, compose: map[string][]byte{}}
+	cnt := &countedReader{r: src}
+	rd := &Reader{tr: tar.NewReader(cnt), src: cnt, seen: map[string]bool{}, compose: map[string][]byte{}}
 	if err := rd.advance(); err != nil {
 		return nil, err
 	}
@@ -434,7 +464,11 @@ func (r *Reader) advance() error {
 // and, for a gzip-compressed archive, its trailer, whose checksum covers
 // every byte (corruption the tar layout does not show).
 func (r *Reader) Close() error {
-	if _, err := io.Copy(io.Discard, r.src); err != nil {
+	n, err := io.CopyN(io.Discard, r.src, maxTrailing+1)
+	switch {
+	case n > maxTrailing:
+		return invalidf("more than %d bytes follow the archive's end", maxTrailing)
+	case err != nil && !errors.Is(err, io.EOF):
 		return invalid(err)
 	}
 	return nil
@@ -547,8 +581,8 @@ func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 		}
 		st.Entries++
 		if out.Typeflag == tar.TypeReg {
-			if r.total += hdr.Size; r.Limit > 0 && r.total > r.Limit {
-				return st, invalidf("the archive unpacks to more than %d bytes", r.Limit)
+			if r.total += hdr.Size; r.limit > 0 && r.total > r.limit {
+				return st, invalidf("the archive unpacks to more than %d bytes", r.limit)
 			}
 			var src io.Reader = r.tr
 			var buf *bytes.Buffer
@@ -603,6 +637,44 @@ func PinnedName(files map[string][]byte) string {
 		}
 	}
 	return ""
+}
+
+// ExplicitVolumeNames returns the volumes the Compose files name
+// themselves (top-level volumes.<key>.name:, without interpolation), by
+// key: they keep their name under any project name.
+func ExplicitVolumeNames(files map[string][]byte) map[string]string {
+	out := map[string]string{}
+	names := make([]string, 0, len(files))
+	for n := range files {
+		names = append(names, n)
+	}
+	slices.Sort(names)
+	for _, n := range names {
+		var doc yaml.Node
+		if err := yaml.Unmarshal(files[n], &doc); err != nil || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+			continue
+		}
+		top := doc.Content[0]
+		for i := 0; i+1 < len(top.Content); i += 2 {
+			if top.Content[i].Value != "volumes" || top.Content[i+1].Kind != yaml.MappingNode {
+				continue
+			}
+			vols := top.Content[i+1]
+			for j := 0; j+1 < len(vols.Content); j += 2 {
+				key, def := vols.Content[j].Value, vols.Content[j+1]
+				if def.Kind != yaml.MappingNode {
+					continue
+				}
+				for k := 0; k+1 < len(def.Content); k += 2 {
+					if v := def.Content[k+1]; def.Content[k].Value == "name" && v.Kind == yaml.ScalarNode && v.Value != "" &&
+						!strings.Contains(v.Value, "$") {
+						out[key] = v.Value
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 // cleanName validates a member name like the agents' extraction does

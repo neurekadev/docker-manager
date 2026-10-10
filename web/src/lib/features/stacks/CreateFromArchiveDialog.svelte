@@ -207,14 +207,16 @@
 		discard();
 	});
 
-	// While the dialog exists: an unused upload goes when the page does, and
-	// a file dropped outside the drop zone is not opened by the browser.
+	// While the dialog exists: an unused upload goes when the page does (not
+	// when it only enters the back/forward cache), and a file dropped
+	// outside the drop zone is not opened by the browser (text still drops
+	// into the fields).
 	$effect(() => {
-		const pagehide = () => {
-			if (archive && !used) discardStackArchiveOnUnload(archive.id);
+		const pagehide = (e: PageTransitionEvent) => {
+			if (!e.persisted && archive && !used) discardStackArchiveOnUnload(archive.id);
 		};
 		const keep = (e: DragEvent) => {
-			if (open) e.preventDefault();
+			if (open && e.dataTransfer?.types.includes('Files')) e.preventDefault();
 		};
 		window.addEventListener('pagehide', pagehide);
 		window.addEventListener('dragover', keep);
@@ -552,7 +554,7 @@
 	{@const renamed = renamedVolumes(p.volumes)}
 	<div class="check" aria-busy={checking}>
 		<Notice tone={head.tone} title={head.title} live="none" />
-		{#if checking || stale}
+		{#if checking}
 			<p class="muted" role="status">Checking again with your changes…</p>
 		{/if}
 		{#if p.blockers.length}
@@ -603,7 +605,7 @@
 			{:else if outcome === 'failed'}
 				<p class="muted">
 					{archive
-						? 'The archive stays uploaded for a day. Fix the cause above, then try again.'
+						? 'Fix the cause above, then press Try Again. Closing this dialog discards the uploaded archive.'
 						: 'Fix the cause above, then create the stack from the archive again.'}
 				</p>
 			{/if}

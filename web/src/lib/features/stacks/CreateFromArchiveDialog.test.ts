@@ -386,7 +386,7 @@ describe('CreateFromArchiveDialog', () => {
 		// The footer's Close (the dialog's header has a Close icon too).
 		expect(within(footer()).getByRole('button', { name: 'Close' })).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Try Again' })).toBeNull();
-		expect(screen.queryByText(/stays uploaded/)).toBeNull();
+		expect(screen.queryByText(/discards the uploaded archive/)).toBeNull();
 	});
 
 	it('sends an emptied display name and description as they are', async () => {
@@ -436,6 +436,11 @@ describe('CreateFromArchiveDialog', () => {
 		await user.click(screen.getByRole('button', { name: 'Create Stack' }));
 		expect(
 			await within(footer()).findByRole('button', { name: 'Try Again' })
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				'Fix the cause above, then press Try Again. Closing this dialog discards the uploaded archive.'
+			)
 		).toBeInTheDocument();
 		expect(deleted).toEqual([]);
 		await user.click(within(footer()).getByRole('button', { name: 'Close' }));

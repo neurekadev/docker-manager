@@ -369,7 +369,7 @@
 			{@const downtime = exportDowntime(title, preview)}
 			<div class="check" aria-busy={checking}>
 				<Notice tone={head.tone} title={head.title} live="none" />
-				{#if checking || changed}
+				{#if checking}
 					<p class="muted" role="status">Checking again with your changes…</p>
 				{/if}
 				{#if checkError}
@@ -473,7 +473,7 @@
 				variant="primary"
 				icon={Download}
 				loading={starting}
-				disabled={!preview?.allowed || checking || changed}
+				disabled={!!blocker}
 				title={blocker}
 				onclick={() => void start()}>Export Archive</Button
 			>

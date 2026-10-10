@@ -82,9 +82,13 @@ func (p ImportPlan) VolumeNames() []string {
 }
 
 // Renaming: the names Compose derives from the project name follow the
-// new stack's name.
+// new stack's name; names the Compose files set themselves stay (the job
+// confirms them with the destination after the commit).
 
-func renamedVolume(v ManifestVolume, name string) string {
+func renamedVolume(v ManifestVolume, named map[string]string, name string) string {
+	if n := named[v.Key]; n != "" {
+		return n
+	}
 	if v.FollowsProject {
 		return name + "_" + v.Key
 	}
@@ -111,7 +115,7 @@ type importFacts struct {
 }
 
 // destinationQuery lists what the new stack creates on the destination.
-func destinationQuery(m Manifest, name string) protocol.MigrationDestinationQuery {
+func destinationQuery(m Manifest, named map[string]string, name string) protocol.MigrationDestinationQuery {
 	q := protocol.MigrationDestinationQuery{ProjectName: name, Dir: name}
 	old := m.Stack.Name
 	for _, sv := range m.Services {
@@ -124,10 +128,14 @@ func destinationQuery(m Manifest, name string) protocol.MigrationDestinationQuer
 		}
 	}
 	for _, v := range m.Volumes {
-		q.Volumes = append(q.Volumes, renamedVolume(v, name))
+		q.Volumes = append(q.Volumes, renamedVolume(v, named, name))
 	}
 	for _, e := range m.NotIncluded {
-		if e.Kind == ExcludedVolume && e.Key != "" {
+		switch {
+		case e.Kind != ExcludedVolume || e.Key == "":
+		case named[e.Key] != "":
+			q.Volumes = append(q.Volumes, named[e.Key])
+		default:
 			q.Volumes = append(q.Volumes, renamed(old, name, "_", e.Name))
 		}
 	}
@@ -157,7 +165,7 @@ func evaluateImport(f importFacts) ImportPlan {
 	}
 	for _, v := range m.Volumes {
 		st := f.upload.Volumes[v.Key]
-		plan.Volumes = append(plan.Volumes, ImportVolume{Key: v.Key, Source: v.Name, Name: renamedVolume(v, f.name), PartStats: st})
+		plan.Volumes = append(plan.Volumes, ImportVolume{Key: v.Key, Source: v.Name, Name: renamedVolume(v, f.upload.NamedVolumes, f.name), PartStats: st})
 		plan.VolumeBytes += st.Bytes
 	}
 	if f.upload.PinnedName != "" && f.upload.PinnedName != f.name {
@@ -271,7 +279,7 @@ func (s *Service) previewImport(ctx context.Context, u Upload, r ImportRequest, 
 		if f.nameErr != nil && !errors.Is(f.nameErr, domain.ErrStackNameTaken) && !(errors.As(f.nameErr, &se) && se.Code == domain.StackErrProjectExists) {
 			return ImportPlan{}, f.nameErr
 		}
-		q := destinationQuery(u.Manifest, r.Name)
+		q := destinationQuery(u.Manifest, u.NamedVolumes, r.Name)
 		var out protocol.MigrationPreviewOutput
 		if err := s.call(ctx, r.EnvironmentID, protocol.ReqMigrationPreview, protocol.MigrationPreviewInput{Role: protocol.RoleDestination,
 			Destination: &q}, &out, s.opts.RequestTimeout); err != nil {
@@ -323,11 +331,16 @@ func (s *Service) StartImport(ctx context.Context, p authz.Principal, archiveID 
 	// back unless a job takes it over.
 	s.mu.Lock()
 	_, used := s.inUse[archiveID]
-	if !used {
+	gone := s.uploads[archiveID] == nil
+	if !used && !gone && !s.evicting[archiveID] {
 		s.inUse[archiveID] = ""
 	}
+	busy := s.evicting[archiveID]
 	s.mu.Unlock()
-	if used {
+	switch {
+	case gone:
+		return domain.Stack{}, domain.Job{}, ErrUploadNotFound
+	case used, busy:
 		return domain.Stack{}, domain.Job{}, ErrUploadInUse
 	}
 	queued := false
@@ -466,7 +479,7 @@ func (in importInput) volumeNames() []string {
 
 const (
 	recoveryNothingKept = "Nothing was kept: what the job wrote was removed and the stack forgotten. "
-	recoveryImport      = recoveryNothingKept + "Fix the cause, then create the stack from the archive again (it stays uploaded for a day)."
+	recoveryImport      = recoveryNothingKept + "Fix the cause, then create the stack from the archive again."
 )
 
 // importUpload returns the job's upload (whoever uploaded it, the job's

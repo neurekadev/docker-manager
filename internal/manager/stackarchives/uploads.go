@@ -35,8 +35,10 @@ type Upload struct {
 	Project PartStats            `json:"project"`
 	Volumes map[string]PartStats `json:"volumes"`
 	// PinnedName is the project name a root Compose file pins with a
-	// top-level name: ("" none).
-	PinnedName string `json:"pinnedName,omitempty"`
+	// top-level name: ("" none); NamedVolumes the volumes the root Compose
+	// files name themselves, by key (they keep their name).
+	PinnedName   string            `json:"pinnedName,omitempty"`
+	NamedVolumes map[string]string `json:"namedVolumes,omitempty"`
 }
 
 // Upload errors.
@@ -111,10 +113,12 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 	// claimed of the free space until they end. At the limit, the user's
 	// oldest upload no stack is being created from makes room (an upload
 	// abandoned in a closed tab must not lock its owner out for a day).
+	// The oldest is set aside (evicting) and removed only once the new
+	// upload is stored: a refused upload loses nothing.
 	s.mu.Lock()
 	n, oldest := 0, ""
 	for uid, u := range s.uploads {
-		if u.OwnerUserID != p.UserID {
+		if u.OwnerUserID != p.UserID || s.evicting[uid] {
 			continue
 		}
 		n++
@@ -132,15 +136,19 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 		s.mu.Unlock()
 		return Upload{}, ErrTooManyUploads
 	}
-	evict := n >= MaxUploadsPerUser
-	if evict {
-		delete(s.uploads, oldest)
+	evict := ""
+	if n >= MaxUploadsPerUser {
+		evict = oldest
+		s.evicting[evict] = true
 	}
 	s.pending[id] = p.UserID
 	s.mu.Unlock()
-	if evict {
-		s.removeUpload(oldest)
-		s.log.Info("discarded the oldest stack archive upload to make room", "archive_id", oldest)
+	if evict != "" {
+		defer func() {
+			s.mu.Lock()
+			delete(s.evicting, evict)
+			s.mu.Unlock()
+		}()
 	}
 	defer func() {
 		s.mu.Lock()
@@ -230,7 +238,15 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 	ok = true
 	s.mu.Lock()
 	s.uploads[id] = &u
+	_, used := s.inUse[evict]
+	if evict != "" && !used {
+		delete(s.uploads, evict)
+	}
 	s.mu.Unlock()
+	if evict != "" && !used {
+		s.removeUpload(evict)
+		s.log.Info("discarded the oldest stack archive upload to make room", "archive_id", evict)
+	}
 	s.log.Info("stack archive uploaded", "archive_id", id, "bytes", size, "volumes", len(u.Manifest.Volumes))
 	return u, nil
 }
@@ -275,7 +291,7 @@ func inspect(r io.Reader, limit int64) (Upload, error) {
 	if err != nil {
 		return Upload{}, err
 	}
-	rd.Limit = limit
+	rd.SetLimit(limit)
 	u := Upload{Manifest: rd.Manifest(), Volumes: map[string]PartStats{}}
 	for {
 		p, err := rd.Next()
@@ -299,6 +315,7 @@ func inspect(r io.Reader, limit int64) (Upload, error) {
 		return Upload{}, err
 	}
 	u.PinnedName = PinnedName(rd.ComposeFiles())
+	u.NamedVolumes = ExplicitVolumeNames(rd.ComposeFiles())
 	return u, nil
 }
 
@@ -335,7 +352,7 @@ func (s *Service) DeleteUpload(p authz.Principal, id string) error {
 		return err
 	}
 	s.mu.Lock()
-	if _, used := s.inUse[id]; used {
+	if _, used := s.inUse[id]; used || s.evicting[id] {
 		s.mu.Unlock()
 		return ErrUploadInUse
 	}
