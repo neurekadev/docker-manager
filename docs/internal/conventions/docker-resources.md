@@ -12,6 +12,11 @@ tests: `internal/agent/engine/enginefake`.
   `InspectContainer`, ...: agent requests scoped by environment, errors are
   `*domain.DockerError` with stable codes); never a second path to the
   agent for the same data.
+- Code that needs one Compose project's containers calls
+  `ListProjectContainers` (the agent lists them by project label and
+  inspects none, #307), never `ListContainers` plus a filter; a
+  per-container inspection in a list request stays within a budget well
+  below the manager's request timeout.
 - Docker Manager's labels (`protocol.Label*`, prefix `docker-manager.`),
   their legacy prefix `dev.neureka.docker-manager.` and Compose's are
   reserved: user input may not set them (`protocol.ValidateLabels`,

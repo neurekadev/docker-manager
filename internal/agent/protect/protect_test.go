@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -62,7 +63,13 @@ func TestHostWithManagerAndAgent(t *testing.T) {
 	if err != nil || !out.(protocol.ManagerIdentityOutput).Colocated {
 		t.Fatalf("manager.identity: %+v %v", out, err)
 	}
+	before := len(fe.Calls())
 	s = identify(t, g, fe)
+	// The networks come from the list: identifying inspects no container,
+	// which the Engine may block while it removes one (#307).
+	if slices.Contains(fe.Calls()[before:], "container.inspect") {
+		t.Errorf("identify inspected containers: %v", fe.Calls()[before:])
+	}
 	role(t, "agent", s.Container(d.AgentID), protection.RoleAgent, true)
 	role(t, "manager", s.Container(d.ManagerID), protection.RoleManager, true)
 	role(t, "proxy", s.Container(d.ProxyID), protection.RoleProject, false)

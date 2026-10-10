@@ -234,6 +234,10 @@ type Agent struct {
 	// execShell: container.exec.create is served by containerio, which
 	// resolves terminal shells (#8, FeatureExecShell).
 	execShell bool
+	// containerListProject: container.list is served by the resources
+	// service, which filters by Compose project and can leave start times
+	// out (FeatureContainerListProject).
+	containerListProject bool
 	// redirectSecure: manager.redirect is served by managerRedirect, which
 	// accepts a secure address at the current generation
 	// (FeatureManagerRedirectSecure).
@@ -459,6 +463,7 @@ func (a *Agent) addResources() {
 		Clock:           a.opts.Clock,
 		Logger:          a.log,
 	})
+	a.containerListProject = a.opts.Requests[protocol.ReqContainerList] == nil
 	reqs := svc.Requests()
 	maps.Copy(reqs, a.opts.Requests)
 	a.opts.Requests = reqs
@@ -737,6 +742,11 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 		p.Features = append(p.Features, protocol.FeatureBackupAnyPolicy)
 		// It writes with the destination's compression mode (#10).
 		p.Features = append(p.Features, protocol.FeatureBackupCompression)
+	}
+	// Its container.list filters by Compose project and can leave start
+	// times out (#307).
+	if a.containerListProject {
+		p.Features = append(p.Features, protocol.FeatureContainerListProject)
 	}
 	// Its container.exec.create resolves terminal shells (#8).
 	if a.execShell {

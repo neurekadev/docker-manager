@@ -14,6 +14,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/agent/engine"
 	"github.com/neurekadev/docker-manager/internal/agent/protect"
 	"github.com/neurekadev/docker-manager/internal/agent/session"
+	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/protocol"
 )
 
@@ -96,18 +97,29 @@ func mountsOf(ms []engine.Mount) []protocol.ContainerMount {
 	return out
 }
 
-func (s *Service) listContainers(ctx context.Context, eng engine.Engine, _ protocol.ContainerListInput) (protocol.ContainerListOutput, error) {
-	cs, err := eng.ListContainers(ctx, engine.ContainerFilter{All: true})
+func (s *Service) listContainers(ctx context.Context, eng engine.Engine, in protocol.ContainerListInput) (protocol.ContainerListOutput, error) {
+	f := engine.ContainerFilter{All: true}
+	if in.Project != "" {
+		f.Labels = []string{protocol.ComposeProjectLabel + "=" + in.Project}
+	}
+	cs, err := eng.ListContainers(ctx, f)
 	if err != nil {
 		return protocol.ContainerListOutput{}, err
 	}
+	// A project's list holds every container of that project, so the
+	// protection of its containers is the same as in the full list.
 	set := s.guard.Identify(ctx, eng, cs)
-	started := startTimes(ctx, eng, cs)
+	var started []*time.Time
+	if !in.NoStartTimes {
+		started = startTimes(ctx, s.clock, eng, cs)
+	}
 	out := protocol.ContainerListOutput{Containers: make([]protocol.ContainerSummary, 0, len(cs))}
 	for i, c := range cs {
 		sum := s.containerSummary(c)
 		sum.Protection = set.Container(c.ID)
-		sum.StartedAt = started[i]
+		if started != nil {
+			sum.StartedAt = started[i]
+		}
 		out.Containers = append(out.Containers, sum)
 	}
 	return out, nil
@@ -116,20 +128,44 @@ func (s *Service) listContainers(ctx context.Context, eng engine.Engine, _ proto
 // startInspections bounds the concurrent inspections of one container.list.
 const startInspections = 8
 
+// startTimesBudget bounds all start-time inspections of one
+// container.list, well below the manager's request timeout. The Engine
+// holds a container's lock while it stops or removes it, so on a loaded
+// host one inspection can block for minutes; the list must not wait for it.
+const startTimesBudget = 5 * time.Second
+
 // startTimes returns the start time of each running container (the list
 // entry has only the Engine's "Up 3 hours" text): one inspection per
-// running container, at most startInspections at a time. A container that
-// vanished or could not be inspected meanwhile simply has none.
-func startTimes(ctx context.Context, eng engine.Engine, cs []engine.Container) []*time.Time {
+// running container, at most startInspections at a time, all within
+// startTimesBudget. A container that vanished, could not be inspected or
+// was not inspected in time simply has none.
+func startTimes(ctx context.Context, clk clock.Clock, eng engine.Engine, cs []engine.Container) []*time.Time {
 	out := make([]*time.Time, len(cs))
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	budget := clk.NewTimer(startTimesBudget)
+	defer budget.Stop()
+	go func() {
+		select {
+		case <-budget.C():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	sem := make(chan struct{}, startInspections)
 	var wg sync.WaitGroup
 	for i, c := range cs {
 		if c.State != "running" && c.State != "paused" && c.State != "restarting" {
 			continue
 		}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+		}
+		if ctx.Err() != nil {
+			break
+		}
 		wg.Add(1)
-		sem <- struct{}{}
 		go func() {
 			defer func() { <-sem; wg.Done() }()
 			d, err := eng.InspectContainer(ctx, c.ID)

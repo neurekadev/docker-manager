@@ -2,10 +2,12 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"slices"
 	"testing"
 
+	"github.com/neurekadev/docker-manager/internal/agent/session"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/protocol"
@@ -27,6 +29,27 @@ func TestContainerRecreateFeature(t *testing.T) {
 		p, _ := a.CapabilitiesPayload()
 		if !slices.Contains(p.Commands, string(jobspec.ContainerRecreate)) || !slices.Contains(p.Features, protocol.FeatureContainerRecreate) {
 			t.Errorf("executors %d: commands %v features %v", len(execs), p.Commands, p.Features)
+		}
+	}
+}
+
+// TestContainerListProjectFeature (#307): the agent announces
+// container.list.project with its own container.list; an explicitly
+// configured container.list handler wins and the feature is not announced
+// for it.
+func TestContainerListProjectFeature(t *testing.T) {
+	own := func(context.Context, json.RawMessage) (any, error) { return "own", nil }
+	for _, c := range []struct {
+		reqs map[string]session.RequestHandler
+		want bool
+	}{{nil, true}, {map[string]session.RequestHandler{protocol.ReqContainerList: own}, false}} {
+		a, err := New(Options{Config: testConfig(filepath.Join(t.TempDir(), "state")), Logger: testutil.Logger(t), Clock: testutil.FakeClock(),
+			Geteuid: func() int { return 0 }, Requests: c.reqs})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p, _ := a.CapabilitiesPayload(); slices.Contains(p.Features, protocol.FeatureContainerListProject) != c.want {
+			t.Errorf("custom handler %v: features %v", c.reqs != nil, p.Features)
 		}
 	}
 }

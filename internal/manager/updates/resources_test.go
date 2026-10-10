@@ -18,6 +18,10 @@ type fakeResources struct {
 	eng   *enginefake.Engine
 	mu    sync.Mutex
 	specs map[string]protocol.ContainerSpec
+	// fullLists counts ListContainers calls; projectLists are the projects
+	// ListProjectContainers listed.
+	fullLists    int
+	projectLists []string
 }
 
 func summary(c engine.ContainerDetails) protocol.ContainerSummary {
@@ -29,7 +33,23 @@ func summary(c engine.ContainerDetails) protocol.ContainerSummary {
 }
 
 func (f *fakeResources) ListContainers(ctx context.Context, _ string) ([]protocol.ContainerSummary, error) {
-	list, err := f.eng.ListContainers(ctx, engine.ContainerFilter{All: true})
+	f.mu.Lock()
+	f.fullLists++
+	f.mu.Unlock()
+	return f.list(ctx, engine.ContainerFilter{All: true})
+}
+
+// ListProjectContainers lists a project's containers by its label, as the
+// agent does.
+func (f *fakeResources) ListProjectContainers(ctx context.Context, _, project string) ([]protocol.ContainerSummary, error) {
+	f.mu.Lock()
+	f.projectLists = append(f.projectLists, project)
+	f.mu.Unlock()
+	return f.list(ctx, engine.ContainerFilter{All: true, Labels: []string{protocol.ComposeProjectLabel + "=" + project}})
+}
+
+func (f *fakeResources) list(ctx context.Context, flt engine.ContainerFilter) ([]protocol.ContainerSummary, error) {
+	list, err := f.eng.ListContainers(ctx, flt)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +103,7 @@ func (f *fakeResources) ContainerProtection(c protocol.ContainerSummary) *protoc
 }
 
 func (f *fakeResources) ProjectProtection(ctx context.Context, env, project string) (*protocol.Protection, error) {
-	cs, err := f.ListContainers(ctx, env)
+	cs, err := f.ListProjectContainers(ctx, env, project)
 	if err != nil {
 		return nil, err
 	}

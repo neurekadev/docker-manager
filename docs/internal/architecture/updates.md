@@ -180,7 +180,12 @@ A registry failure (`unauthorized`, `forbidden`, `rate_limited`,
 on the candidate (`check_failed`) with its message and `retryAfterSeconds`;
 nothing is pulled. A check never pulls. For stacks the definition is read
 (`compose.read`) before and after; a change in between fails the check
-with `source_changed` (Docker Manager never writes it).
+with `source_changed` (Docker Manager never writes it). The services a container of
+the stack excludes with `docker-manager.update.exclude=true` come from a
+list of the stack's own containers (`ListProjectContainers`, no start
+times), never a listing of the whole environment: the checks of every
+policy start together and would otherwise hold the agent's request slots
+on a loaded host (#307).
 
 ## Preview and run
 

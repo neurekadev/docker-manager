@@ -43,7 +43,10 @@ Moby adapter (#21). There is no Engine API passthrough.
   IPv4/IPv6 addresses (`networkList`; empty addresses while stopped) and,
   for running, paused and restarting containers, `startedAt`: the Engine's
   list has no start time, so the agent inspects those containers (at most
-  eight at a time; one that vanished meanwhile simply has none). The API
+  eight at a time, all within five seconds: the Engine holds a container's
+  lock while it stops or removes it, which on a loaded host can block an
+  inspection for minutes; one that vanished meanwhile or was not
+  inspected in time simply has none, #307). The API
   `Container` shows them as `startedAt` and `networks` (full view); stack
   services (`compose.services`) carry the same `networks` per container,
   and its `volumes`: the volume mounts (name, destination, read-only;
@@ -52,6 +55,12 @@ Moby adapter (#21). There is no Engine API passthrough.
   `protocol.AnonymousVolumeName`; no volume inspect per request). The API
   `StackContainer` shows them as `volumes` (full view, like `networks`).
   Older agents omit the fields; the manager and the UI show "—".
+- Callers that need one Compose project's containers use
+  `resources.Service.ListProjectContainers`: agents with
+  `protocol.FeatureContainerListProject` list them by their project label
+  without start times (no inspection); older agents list every container
+  and the manager filters. Stack protection (`ProjectProtection`) and
+  update checks list this way, never the whole environment (#307).
 - `container.inspect` reports the on-failure restart policy's maximum
   retry count (`restartMaxRetries`; absent when unlimited or for other
   policies); the API `ContainerDetails` shows it as `restartMaxRetries`

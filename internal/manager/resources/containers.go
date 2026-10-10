@@ -28,6 +28,31 @@ func (s *Service) ListContainers(ctx context.Context, env string) ([]protocol.Co
 	return out.Containers, nil
 }
 
+// ListProjectContainers returns the containers of one Compose project of
+// the environment, without start times: the agent lists them by their
+// project label and inspects none (#307), so a container the Engine is
+// slow to inspect never delays it. Agents without
+// protocol.FeatureContainerListProject list every container; their
+// answer is filtered here.
+func (s *Service) ListProjectContainers(ctx context.Context, env, project string) ([]protocol.ContainerSummary, error) {
+	if fh, ok := s.opts.Agents.(featureHub); !ok || !fh.EnvironmentHasFeature(env, protocol.FeatureContainerListProject) {
+		cs, err := s.ListContainers(ctx, env)
+		if err != nil {
+			return nil, err
+		}
+		return slices.DeleteFunc(cs, func(c protocol.ContainerSummary) bool { return c.Stack == nil || c.Stack.Project != project }), nil
+	}
+	out, err := request[protocol.ContainerListOutput](ctx, s, env, protocol.ReqContainerList,
+		protocol.ContainerListInput{Project: project, NoStartTimes: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range out.Containers {
+		s.remember(catalog.TypeContainer, env, c.Name, c.Stack)
+	}
+	return out.Containers, nil
+}
+
 // InspectContainer returns a container by ID, unique ID prefix or name.
 func (s *Service) InspectContainer(ctx context.Context, env, ref string) (protocol.ContainerDetails, error) {
 	if ref == "" || len(ref) > 128 {

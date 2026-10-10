@@ -567,6 +567,41 @@ func TestIneligibleServicesAreVisible(t *testing.T) {
 	}
 }
 
+// A stack check lists only the stack's containers (#307), never the whole
+// environment: a container of the stack with docker-manager.update.exclude
+// excludes its service; the label on another project's container does not.
+func TestCheckListsOnlyTheStacksContainers(t *testing.T) {
+	h := newHarness(t)
+	h.publish("acme/web", "1.4", "")
+	h.publish("acme/db", "16", " db")
+	st, _, _ := h.shop()
+	exclude := func(project, service string) map[string]string {
+		return map[string]string{protocol.ComposeProjectLabel: project, protocol.ComposeServiceLabel: service, protocol.LabelUpdateExclude: "true"}
+	}
+	h.engine.AddContainer(engine.ContainerSpec{Name: "shop-db-2", Image: h.ref("acme/db:16"), Labels: exclude("shop", "db")}, true)
+	h.engine.AddContainer(engine.ContainerSpec{Name: "other-web-1", Image: h.ref("acme/web:1.4"), Labels: exclude("other", "web")}, true)
+	p := h.policy(updates.NewPolicy{TargetType: domain.UpdateTargetStack, TargetID: st.ID})
+	h.res.mu.Lock()
+	full := h.res.fullLists
+	h.res.projectLists = nil
+	h.res.mu.Unlock()
+	if j := h.check(p); j.State != domain.JobSucceeded {
+		t.Fatalf("check %s %s: %s", j.State, j.ErrorClass, j.ErrorMessage)
+	}
+	c := h.candidates(p)
+	if c["db"].Status != domain.CandidateIneligible || c["db"].Reason != domain.UpdateReasonExcluded {
+		t.Errorf("db %+v", c["db"])
+	}
+	if c["web"].Status != domain.CandidateUpToDate {
+		t.Errorf("web %+v", c["web"])
+	}
+	h.res.mu.Lock()
+	defer h.res.mu.Unlock()
+	if h.res.fullLists != full || !slices.Equal(h.res.projectLists, []string{"shop"}) {
+		t.Errorf("full lists %d (before %d), project lists %v", h.res.fullLists, full, h.res.projectLists)
+	}
+}
+
 // A new candidate shows when its image was created (the image config's
 // created time, display only). The time is read once per digest, and a
 // check never fails because it is unavailable.
