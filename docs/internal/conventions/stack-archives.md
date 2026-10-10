@@ -17,7 +17,9 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
   modes, links, ordering, bounds and refusals). The reader keeps no
   per-member state (millions of files cost no memory): bound it by members
   (`MaxEntries`), file bytes and the whole decompressed stream
-  (`NewLimitedReader`), never by a set of names.
+  (`NewLimitedReader`), never by a set of names. Lists in the manifest are
+  bounded and their entries unique (`Manifest.Validate`); resolve default
+  Compose files exactly as the agent does (`compose.configFiles`).
 - Archive bytes never reach an agent unverified: an upload is validated
   while it is written (`inspect`), and every part an import sends is
   re-encoded by `Reader.WriteTo` (names below the part, hard links to

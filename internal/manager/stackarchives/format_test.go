@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -254,6 +255,8 @@ func TestReaderRefuses(t *testing.T) {
 		"own label":           {bad(func(m *Manifest) { m.Volumes[0].Labels = map[string]string{"docker-manager.migration": "x"} }), nil},
 		"not following":       {bad(func(m *Manifest) { m.Volumes[0].Name = "other" }), nil},
 		"definition file":     {bad(func(m *Manifest) { m.Stack.ConfigFiles = []string{"../compose.yaml"} }), nil},
+		"repeated file":       {bad(func(m *Manifest) { m.Stack.ConfigFiles = []string{"a.yaml", "a.yaml"} }), nil},
+		"too many files":      {bad(func(m *Manifest) { m.Stack.ConfigFiles = strings.Split("a b c d e f g h i j k l m n o p q", " ") }), nil},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -411,33 +414,46 @@ func TestPinnedName(t *testing.T) {
 	}
 }
 
-// TestComposeFilesCaptured: only the project's root Compose files (and its
-// configured ones) are read on the way.
+// TestComposeFilesCaptured: only files Compose may load are read on the
+// way: the configured ones (also below the root), else the default base
+// files and overrides.
 func TestComposeFilesCaptured(t *testing.T) {
-	m := testManifest()
-	m.Volumes = nil
-	m.Stack.ConfigFiles = []string{"stack.yml"}
-	b := rawArchive(t, true, &m,
-		member{name: "project/", typ: tar.TypeDir},
-		member{name: "project/compose.yaml", typ: tar.TypeReg, data: "a"},
-		member{name: "project/docker-compose.override.yml", typ: tar.TypeReg, data: "b"},
-		member{name: "project/stack.yml", typ: tar.TypeReg, data: "c"},
-		member{name: "project/notes.yaml", typ: tar.TypeReg, data: "d"},
-		member{name: "project/sub/", typ: tar.TypeDir},
-		member{name: "project/sub/compose.yaml", typ: tar.TypeReg, data: "e"})
-	rd, err := NewReader(bytes.NewReader(b))
-	if err != nil {
-		t.Fatal(err)
+	read := func(t *testing.T, configFiles []string) map[string][]byte {
+		t.Helper()
+		m := testManifest()
+		m.Volumes, m.Stack.ConfigFiles = nil, configFiles
+		b := rawArchive(t, true, &m,
+			member{name: "project/", typ: tar.TypeDir},
+			member{name: "project/compose.a.yaml", typ: tar.TypeReg, data: "x"},
+			member{name: "project/compose.yaml", typ: tar.TypeReg, data: "a"},
+			member{name: "project/docker-compose.override.yml", typ: tar.TypeReg, data: "b"},
+			member{name: "project/stack.yml", typ: tar.TypeReg, data: "c"},
+			member{name: "project/deploy/", typ: tar.TypeDir},
+			member{name: "project/deploy/compose.yaml", typ: tar.TypeReg, data: "d"})
+		rd, err := NewReader(bytes.NewReader(b))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := rd.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rd.WriteTo(p, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		return rd.ComposeFiles()
 	}
-	p, err := rd.Next()
-	if err != nil {
-		t.Fatal(err)
+	if got := read(t, nil); len(got) != 2 || string(got["compose.yaml"]) != "a" || string(got["docker-compose.override.yml"]) != "b" {
+		t.Errorf("defaults: %v", got)
 	}
-	if _, err := rd.WriteTo(p, io.Discard); err != nil {
-		t.Fatal(err)
+	if got := read(t, []string{"stack.yml", "deploy/compose.yaml"}); len(got) != 2 || string(got["stack.yml"]) != "c" || string(got["deploy/compose.yaml"]) != "d" {
+		t.Errorf("configured: %v", got)
 	}
-	got := rd.ComposeFiles()
-	if len(got) != 3 || string(got["compose.yaml"]) != "a" || string(got["docker-compose.override.yml"]) != "b" || string(got["stack.yml"]) != "c" {
-		t.Fatalf("compose files %v", got)
+	// The agents load a base file's own override only.
+	if got := LoadedComposeFiles(map[string][]byte{"compose.yaml": nil, "docker-compose.override.yml": nil}, nil); !slices.Equal(got, []string{"compose.yaml"}) {
+		t.Errorf("loaded %v", got)
+	}
+	if got := LoadedComposeFiles(map[string][]byte{"compose.yml": nil, "compose.override.yml": nil, "compose.override.yaml": nil}, nil); !slices.Equal(got, []string{"compose.yml", "compose.override.yml"}) {
+		t.Errorf("loaded %v", got)
 	}
 }

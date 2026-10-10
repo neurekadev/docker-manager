@@ -71,9 +71,11 @@ day; the download is a ranged file response.
 
 1. **Upload** (`create-stack-archive`): the body streams to
    `uploads/<id>.tar.gz.part` while `inspect` reads it through a pipe
-   (manifest, every part re-encoded to nowhere, sizes, the Compose files
-   Compose loads, in its order, for a pinned `name:` and the volumes they
-   name themselves, `NamedVolumes`); invalid archives are deleted, valid
+   (manifest, every part re-encoded to nowhere, sizes, and the Compose
+   files the agents load, as they resolve them: the stack's configured
+   files, at most 16, else the first default base file and its own
+   override; only those are read on the way, for a pinned `name:` and the
+   volumes they name themselves, `NamedVolumes`); invalid archives are deleted, valid
    ones get a sidecar and live a day. At most five per user, uploads in
    progress included: at the limit the oldest one no stack is being created
    from is set aside and discarded once the new upload is stored (a refused

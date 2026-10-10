@@ -167,9 +167,16 @@ func (m Manifest) Validate() error {
 	case len(m.Services) > 256 || len(m.Networks) > 256 || len(m.ExternalVolumes) > 256 || len(m.NotIncluded) > 512:
 		return invalidf("the manifest lists too many services, networks or exclusions")
 	}
-	for _, f := range append(slices.Clone(m.Stack.ConfigFiles), m.Stack.EnvFiles...) {
-		if !protocol.ValidRelativePath(f) || f == "." {
-			return invalidf("invalid definition file %q", f)
+	if len(m.Stack.ConfigFiles) > maxComposeFiles || len(m.Stack.EnvFiles) > maxComposeFiles {
+		return invalidf("the stack lists more than %d Compose or env files", maxComposeFiles)
+	}
+	for _, list := range [][]string{m.Stack.ConfigFiles, m.Stack.EnvFiles} {
+		seen := map[string]bool{}
+		for _, f := range list {
+			if !protocol.ValidRelativePath(f) || f == "." || seen[f] {
+				return invalidf("invalid or repeated definition file %q", f)
+			}
+			seen[f] = true
 		}
 	}
 	keys, names := map[string]bool{}, map[string]bool{}
@@ -377,18 +384,23 @@ const (
 	maxComposeFile  = protocol.MaxSourceFile
 )
 
-var composeFileRE = regexp.MustCompile(`^(docker-)?compose(\.[^/]*)?\.ya?ml$`)
-
 // ComposeFiles returns the project's root Compose files (and the stack's
 // own configured ones at the root) read so far, at most 16 of up to
 // protocol.MaxSourceFile bytes each.
 func (r *Reader) ComposeFiles() map[string][]byte { return r.compose }
 
+// wantsCompose reports whether a project file is one Compose may load (a
+// configured file, else a default one or its override): only those are
+// read on the way, so other files named like Compose files cannot crowd
+// them out.
 func (r *Reader) wantsCompose(p Part, inner string, size int64) bool {
-	if p.Volume != "" || strings.Contains(inner, "/") || size > maxComposeFile || len(r.compose) >= maxComposeFiles {
+	if p.Volume != "" || size > maxComposeFile || len(r.compose) >= maxComposeFiles {
 		return false
 	}
-	return composeFileRE.MatchString(inner) || slices.Contains(r.m.Stack.ConfigFiles, inner)
+	if len(r.m.Stack.ConfigFiles) > 0 {
+		return slices.Contains(r.m.Stack.ConfigFiles, inner) // at most maxComposeFiles
+	}
+	return slices.Contains(defaultComposeFiles, inner) || slices.Contains(defaultOverrideFiles, inner)
 }
 
 // NewReader opens an archive (gzip-compressed or a plain tar) and reads
@@ -631,36 +643,43 @@ func invalidOrWrite(err error) error {
 	return err
 }
 
-// Compose's default files: the first base file present, then the first
-// override present.
+// Compose's default files, as the agents resolve them
+// (compose.configFiles): the first base file present, then only its own
+// override (<base>.override<ext>).
 var (
 	defaultComposeFiles  = []string{"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"}
 	defaultOverrideFiles = []string{"compose.override.yaml", "compose.override.yml", "docker-compose.override.yaml", "docker-compose.override.yml"}
 )
 
-// LoadedComposeFiles orders the files Compose loads from the root files
-// read: the stack's configured ones, or the defaults (base, override);
-// later files override earlier ones.
+// LoadedComposeFiles orders the files Compose loads from the files read:
+// the stack's configured ones (each once), or the default base file and
+// its override; later files override earlier ones.
 func LoadedComposeFiles(files map[string][]byte, configFiles []string) []string {
+	var out []string
 	if len(configFiles) > 0 {
-		var out []string
 		for _, f := range configFiles {
-			if _, ok := files[f]; ok {
+			if _, ok := files[f]; ok && !slices.Contains(out, f) {
 				out = append(out, f)
 			}
 		}
 		return out
 	}
-	var out []string
-	for _, group := range [][]string{defaultComposeFiles, defaultOverrideFiles} {
-		for _, f := range group {
-			if _, ok := files[f]; ok {
-				out = append(out, f)
-				break
+	for _, base := range defaultComposeFiles {
+		if hasFile(files, base) {
+			out = append(out, base)
+			ext := path.Ext(base)
+			if override := strings.TrimSuffix(base, ext) + ".override" + ext; hasFile(files, override) {
+				out = append(out, override)
 			}
+			return out
 		}
 	}
 	return out
+}
+
+func hasFile(files map[string][]byte, name string) bool {
+	_, ok := files[name]
+	return ok
 }
 
 // PinnedName returns the project name the loaded Compose files pin with a

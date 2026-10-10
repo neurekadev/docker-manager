@@ -450,16 +450,24 @@ func (h *stackArchivesAPI) requireCreateAnywhere(ctx context.Context) (authz.Pri
 	if h.deps.Agents == nil {
 		return p, Unavailable(CodeUnavailable, "the environment service is not available")
 	}
-	envs, err := h.deps.Agents.ListEnvironments(ctx, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive}, Limit: 500})
-	if err != nil {
-		return p, Internal(err)
-	}
-	for _, e := range envs {
-		if c.Can(string(CapStackCreate), authz.InEnvironment(catalog.TypeStack, e.ID)).Allowed {
-			return p, h.available()
+	const page = 500
+	after := ""
+	for {
+		envs, err := h.deps.Agents.ListEnvironments(ctx, domain.EnvironmentFilter{Statuses: []domain.EnvironmentStatus{domain.EnvironmentActive},
+			AfterID: after, Limit: page})
+		if err != nil {
+			return p, Internal(err)
 		}
+		for _, e := range envs {
+			if c.Can(string(CapStackCreate), authz.InEnvironment(catalog.TypeStack, e.ID)).Allowed {
+				return p, h.available()
+			}
+		}
+		if len(envs) < page {
+			return p, Forbidden("not permitted: " + string(CapStackCreate))
+		}
+		after = envs[len(envs)-1].ID
 	}
-	return p, Forbidden("not permitted: " + string(CapStackCreate))
 }
 
 // archiveBodyKey carries the raw request body of the upload.
@@ -484,7 +492,13 @@ type idleReader struct {
 
 func (i *idleReader) Read(p []byte) (int, error) {
 	_ = i.deadline(time.Now().Add(archiveIdle)) // network deadline: wall clock by design
-	return i.r.Read(p)
+	n, err := i.r.Read(p)
+	if err != nil {
+		// The body ended: the server's own read after it must not time
+		// out while the archive is still being stored.
+		_ = i.deadline(time.Time{})
+	}
+	return n, err
 }
 
 func (h *stackArchivesAPI) upload(ctx context.Context, in *stackArchiveUploadInput) (*stackArchiveOutput, error) {
