@@ -21,3 +21,16 @@ func TestSampleFromCarriesTemperatures(t *testing.T) {
 		t.Fatalf("%+v", s.Temperatures)
 	}
 }
+
+// TestSampleFromCarriesIOWait (#309): the host's I/O wait reaches the stored
+// sample; an older agent sends none (a gap).
+func TestSampleFromCarriesIOWait(t *testing.T) {
+	w := 57.25
+	s := sampleFrom(protocol.MetricBatch{Seq: 1, At: testutil.Epoch, Host: protocol.HostSample{IOWaitPercent: &w}}, 0, testutil.Epoch)
+	if s.Host == nil || s.Host.IOWaitPercent == nil || *s.Host.IOWaitPercent != 57.25 {
+		t.Fatalf("%+v", s.Host)
+	}
+	if s := sampleFrom(protocol.MetricBatch{Seq: 2, At: testutil.Epoch}, 0, testutil.Epoch); s.Host.IOWaitPercent != nil {
+		t.Fatalf("older agent: %v", *s.Host.IOWaitPercent)
+	}
+}

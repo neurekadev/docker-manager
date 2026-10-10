@@ -68,3 +68,19 @@ func TestHostMemoryAndDiskThroughputAreBounded(t *testing.T) {
 		}
 	}
 }
+
+// TestHostIOWaitIsAPercentage (#309): I/O wait is 0..100 like CPU.
+func TestHostIOWaitIsAPercentage(t *testing.T) {
+	at := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+	with := func(v float64) HostMetricsOutput {
+		return HostMetricsOutput{Epoch: "e", Now: at, IntervalSeconds: 10, Batches: []MetricBatch{{Seq: 1, At: at, Host: HostSample{IOWaitPercent: &v}}}}
+	}
+	if err := with(57.25).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []float64{-1, 100.5, math.NaN()} {
+		if err := with(v).Validate(); !errors.Is(err, ErrInvalidFrame) {
+			t.Errorf("%v: %v", v, err)
+		}
+	}
+}

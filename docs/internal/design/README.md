@@ -133,9 +133,9 @@ host's Temperature chart colours its sensors the same way, ranked by their
 maximum over the range (`rankByPeak`), the hottest first. The other host
 charts (and the CPU and memory sparklines) colour each metric with
 Beszel's colour for it, `METRIC_COLORS` in `$lib/design/hue`: CPU blue,
-memory and swap green (ZFS ARC teal, cache a lighter green), disk usage
-purple, disk reads blue and writes orange, network received green and
-sent pink, load purple, blue and orange.
+memory and swap green (ZFS ARC teal, cache a lighter green), I/O wait
+orange, disk usage purple, disk reads blue and writes orange, network
+received green and sent pink, load purple, blue and orange.
 
 ```ts
 import { SERVICE_HEX } from '$lib/design/hue';

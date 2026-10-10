@@ -31,7 +31,7 @@ const (
 // HostMetricKeys are the metric keys of GET …/metrics (host, disks and
 // temperature sensors).
 var HostMetricKeys = []string{
-	"cpu.percent", "cpu.percent.max", "memory.used_bytes", "memory.used_bytes.max", "memory.total_bytes",
+	"cpu.percent", "cpu.percent.max", "cpu.iowait_percent", "cpu.iowait_percent.max", "memory.used_bytes", "memory.used_bytes.max", "memory.total_bytes",
 	"memory.cache_bytes", "memory.zfs_arc_bytes", "swap.used_bytes", "swap.total_bytes",
 	"load.1", "load.5", "load.15",
 	"network.rx_bytes_per_second", "network.rx_bytes_per_second.max", "network.tx_bytes_per_second", "network.tx_bytes_per_second.max",

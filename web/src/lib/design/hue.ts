@@ -60,12 +60,14 @@ const BESZEL = {
  * The colour of each host metric on the environment's charts, Beszel's
  * (also its memory parts and load lines), so the charts read like
  * Beszel's: CPU blue, memory and swap green, disk usage purple, disk reads
- * blue and writes orange, network received green and sent pink. A metric
+ * blue and writes orange, network received green and sent pink; I/O wait
+ * (which Beszel does not chart) orange like disk writes. A metric
  * has the same colour wherever it is drawn (sparklines too). HSL (ECharts
  * and CSS both read it).
  */
 export const METRIC_COLORS = {
 	cpu: BESZEL.blue,
+	ioWait: BESZEL.orange,
 	memoryUsed: BESZEL.green,
 	memoryZfsArc: 'hsla(175, 60%, 45%, 0.8)',
 	memoryCache: 'hsla(160, 60%, 45%, 0.5)',

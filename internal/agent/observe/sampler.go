@@ -269,6 +269,7 @@ func (s *Sampler) sampleHost(at time.Time) protocol.HostSample {
 		h.CPUs = cpus
 		s.lastCPUs = cpus
 		h.CPUPercent = hostCPUPercent(s.prevCPU, cpu)
+		h.IOWaitPercent = hostIOWaitPercent(s.prevCPU, cpu)
 		s.prevCPU = &cpu
 	} else {
 		s.prevCPU = nil
@@ -332,6 +333,17 @@ func hostCPUPercent(prev *cpuTimes, cur cpuTimes) *float64 {
 		return nil
 	}
 	return f64(clampPercent(float64(cur.busy-prev.busy) / float64(cur.total-prev.total) * 100))
+}
+
+// hostIOWaitPercent is the iowait share of all CPU time between two
+// /proc/stat reads: time the cores were idle with disk I/O outstanding.
+// nil without a usable previous read, or when the iowait counter went
+// backwards (it may on tickless kernels).
+func hostIOWaitPercent(prev *cpuTimes, cur cpuTimes) *float64 {
+	if prev == nil || cur.total <= prev.total || cur.iowait < prev.iowait {
+		return nil
+	}
+	return f64(clampPercent(float64(cur.iowait-prev.iowait) / float64(cur.total-prev.total) * 100))
 }
 
 // netScope is host when PID 1 lives in another network namespace than the

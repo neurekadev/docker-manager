@@ -565,3 +565,45 @@ func TestHostMemorySwapAndDiskThroughputAreStored(t *testing.T) {
 		t.Fatalf("latest %+v %v %v", l.Host, ok, err)
 	}
 }
+
+// TestHostIOWaitIsStored (#309): I/O wait is stored with the host sample
+// and rolled up like CPU (sample-weighted average and maximum); samples of
+// older agents without it are gaps, never zero.
+func TestHostIOWaitIsStored(t *testing.T) {
+	clk := testutil.FakeClock()
+	s := openTest(t, clk)
+	ctx := testutil.Context(t)
+	t0 := clk.Now().Truncate(time.Hour)
+	var batch []domain.MetricSample
+	for k := range 60 {
+		h := &domain.HostValues{CPUPercent: f(10)}
+		if k < 30 {
+			h.IOWaitPercent = f(float64(20 + 40*(k%2))) // average 40, max 60
+		}
+		batch = append(batch, domain.MetricSample{At: t0.Add(time.Duration(k) * 10 * time.Second), Host: h})
+	}
+	clk.Set(t0.Add(11 * time.Minute))
+	if _, err := s.Ingest(ctx, env, batch, nil); err != nil {
+		t.Fatal(err)
+	}
+	keys := []string{"cpu.iowait_percent", "cpu.iowait_percent.max"}
+	want := map[string]string{"cpu.iowait_percent": "40 40 40 40 40 - - - - -", "cpu.iowait_percent.max": "60 60 60 60 60 - - - - -"}
+	check := func(when string) {
+		t.Helper()
+		r, err := s.Query(ctx, domain.MetricQuery{EnvironmentID: env, Kind: domain.MetricHost, From: t0, To: t0.Add(10 * time.Minute),
+			Step: time.Minute, Keys: keys})
+		if err != nil {
+			t.Fatalf("%s: %v", when, err)
+		}
+		for _, k := range keys {
+			if got := values(series(t, r, k, "")); got != want[k] {
+				t.Errorf("%s %s: %s, want %s", when, k, got, want[k])
+			}
+		}
+	}
+	check("raw")
+	if err := s.Rollup(ctx); err != nil {
+		t.Fatal(err)
+	}
+	check("rolled up")
+}

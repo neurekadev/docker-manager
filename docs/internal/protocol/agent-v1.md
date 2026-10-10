@@ -1192,7 +1192,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
   ARC; `memoryCacheBytes` (buffers and page cache without shared memory),
   `memoryZfsArcBytes` (absent without ZFS), `swapUsedBytes`,
   `swapTotalBytes` (0 without swap) and `diskReadBytesPerSecond` /
-  `diskWriteBytesPerSecond` (the host's whole disks, at most 1 TB/s) are
+  `diskWriteBytesPerSecond` (the host's whole disks, at most 1 TB/s) and
+  `ioWaitPercent` (#309: the iowait share of all CPU time, 0–100) are
   optional: older agents omit them and as output fields they need no
   feature. The manager fetches 2 s after each 10 s slot.
 - `metrics.live {}` → `LiveMetricsOutput {at, flags, host {cpuPercent,
