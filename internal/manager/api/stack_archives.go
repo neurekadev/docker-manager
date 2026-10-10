@@ -219,11 +219,11 @@ type stackArchivePath struct {
 // StackArchiveImportBody chooses where and how a stack is created from an
 // archive.
 type StackArchiveImportBody struct {
-	EnvironmentID string `json:"environmentId" minLength:"1" maxLength:"64" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70" doc:"The environment the stack is created in."`
-	Name          string `json:"name" minLength:"1" maxLength:"63" example:"web" doc:"The new stack's Compose project name (and folder). Volumes named after the project follow it."`
-	DisplayName   string `json:"displayName,omitempty" maxLength:"128" doc:"Default: the archive's."`
-	Description   string `json:"description,omitempty" maxLength:"1024" doc:"Default: the archive's."`
-	Deploy        bool   `json:"deploy,omitempty" doc:"Deploy the stack once its files and volumes are in place (also needs stack.deploy)."`
+	EnvironmentID string  `json:"environmentId" minLength:"1" maxLength:"64" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70" doc:"The environment the stack is created in."`
+	Name          string  `json:"name" minLength:"1" maxLength:"63" example:"web" doc:"The new stack's Compose project name (and folder). Volumes named after the project follow it."`
+	DisplayName   *string `json:"displayName,omitempty" maxLength:"128" example:"Shop" doc:"Omitted: the archive's; empty: none."`
+	Description   *string `json:"description,omitempty" maxLength:"1024" example:"Orders and payments" doc:"Omitted: the archive's; empty: none."`
+	Deploy        bool    `json:"deploy,omitempty" doc:"Deploy the stack once its files and volumes are in place (also needs stack.deploy)."`
 }
 
 func (b StackArchiveImportBody) request() stackarchives.ImportRequest {
@@ -311,7 +311,7 @@ func archiveErr(err error) error {
 	case errors.Is(err, stackarchives.ErrUploadTooLarge):
 		return NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, err.Error())
 	case errors.Is(err, stackarchives.ErrTooManyUploads):
-		return Conflict(CodeTooManyStackArchives, fmt.Sprintf("you have %d uploaded archives waiting; use or discard one first", stackarchives.MaxUploadsPerUser))
+		return Conflict(CodeTooManyStackArchives, fmt.Sprintf("you have %d uploaded archives in use or still arriving; wait for one to finish", stackarchives.MaxUploadsPerUser))
 	case errors.Is(err, stackarchives.ErrNoSpace):
 		return NewError(http.StatusInsufficientStorage, CodeManagerSpace, err.Error())
 	case errors.Is(err, stackarchives.ErrUploadIncomplete):
@@ -634,8 +634,8 @@ func registerStackArchives(a huma.API, deps Deps) {
 		Description: "Uploads an archive written by a stack export (raw body, Content-Length required; 413 above " +
 			"DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB). It is stored on the manager and validated on the way (422 invalid_stack_archive), " +
 			"nothing reaches a host. Create a stack from it with POST /stack-archives/{archiveId}/imports within a day; only the " +
-			"uploader sees it. Needs stack.create in at least one environment; at most five uploads per user wait at once " +
-			"(409 too_many_stack_archives); 507 manager_space when the manager's disk is too full. The reverse proxy's body limit " +
+			"uploader sees it. Needs stack.create in at least one environment; at most five uploads per user wait at once: " +
+			"the oldest one no stack is being created from makes room (409 too_many_stack_archives when none can); 507 manager_space when the manager's disk is too full. The reverse proxy's body limit " +
 			"must allow the archive's size.",
 		Tags: []string{tagStacks}, Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict,
 			http.StatusLengthRequired, http.StatusRequestEntityTooLarge, http.StatusUnsupportedMediaType, http.StatusUnprocessableEntity,

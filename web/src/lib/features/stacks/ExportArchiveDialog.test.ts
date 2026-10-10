@@ -83,6 +83,7 @@ const exportJob = {
 	origin: 'manual',
 	executor: 'manager',
 	environmentId: 'env-1',
+	initiatorUserId: 'u-me',
 	targets: [{ type: 'stack', id: 'st-1' }],
 	attempt: 1,
 	progress: { percent: 40, step: 'write_archive' },
@@ -124,6 +125,8 @@ beforeEach(() => {
 		if (url.pathname === '/api/v1/jobs')
 			return json(200, { items: running, total: running.length });
 		if (url.pathname === '/api/v1/jobs/job-e') return json(200, watched);
+		if (url.pathname === '/api/v1/auth/session')
+			return json(200, { state: 'authenticated', user: { id: 'u-me', username: 'me' } });
 		return json(404, {
 			code: 'not_found',
 			message: 'no',
@@ -290,6 +293,15 @@ describe('ExportArchiveDialog', () => {
 		).toBeInTheDocument();
 		expect(tray.jobs).toEqual([]);
 		expect(screen.queryByRole('button', { name: 'Export Archive' })).toBeNull();
+	});
+
+	it('never shows another user’s export of the stack', async () => {
+		running = [{ ...exportJob, initiatorUserId: 'u-other' }];
+		dialog();
+		expect(await screen.findByRole('table', { name: 'Volumes of Silo' })).toBeInTheDocument();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(screen.queryByRole('progressbar')).toBeNull();
+		expect(screen.getByRole('button', { name: 'Export Archive' })).toBeInTheDocument();
 	});
 
 	it('downloads the archive at once when the export it shows succeeds', async () => {

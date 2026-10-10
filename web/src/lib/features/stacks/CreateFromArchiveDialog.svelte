@@ -17,7 +17,8 @@
 	// deploy asked for runs as a job of its own once the stack is filled;
 	// when it could not be started the stack is kept and opens from here.
 	// An upload no stack was created from is discarded when the dialog
-	// closes.
+	// closes or the page goes away; a file dropped beside the drop zone
+	// never makes the browser open it.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy, untrack } from 'svelte';
@@ -47,7 +48,12 @@
 		formatPercent,
 		toast
 	} from '$lib/ui';
-	import { discardStackArchive, previewArchiveImport, startArchiveImport } from './archive-api';
+	import {
+		discardStackArchive,
+		discardStackArchiveOnUnload,
+		previewArchiveImport,
+		startArchiveImport
+	} from './archive-api';
 	import { uploadStackArchive, type ArchiveUpload } from './archive-upload';
 	import {
 		archiveContents,
@@ -108,6 +114,7 @@
 	let environmentId = $state('');
 	let name = $state('');
 	let displayName = $state('');
+	let description = $state('');
 	let deployAfter = $state(true);
 	$effect(() => {
 		if (!open) return;
@@ -125,6 +132,7 @@
 		environmentId,
 		name,
 		displayName,
+		description,
 		deploy: deployAfter && mayDeploy
 	});
 	const nameMsg = $derived(name ? nameError(name) : undefined);
@@ -167,7 +175,14 @@
 
 	const blocker = $derived(
 		archive && !jobId
-			? importBlocker({ environment: env, name, preview, checking, stale })
+			? importBlocker({
+					environment: env,
+					name,
+					preview,
+					checking,
+					stale,
+					failed: !!checkError
+				})
 			: undefined
 	);
 
@@ -192,13 +207,32 @@
 		discard();
 	});
 
+	// While the dialog exists: an unused upload goes when the page does, and
+	// a file dropped outside the drop zone is not opened by the browser.
+	$effect(() => {
+		const pagehide = () => {
+			if (archive && !used) discardStackArchiveOnUnload(archive.id);
+		};
+		const keep = (e: DragEvent) => {
+			if (open) e.preventDefault();
+		};
+		window.addEventListener('pagehide', pagehide);
+		window.addEventListener('dragover', keep);
+		window.addEventListener('drop', keep);
+		return () => {
+			window.removeEventListener('pagehide', pagehide);
+			window.removeEventListener('dragover', keep);
+			window.removeEventListener('drop', keep);
+		};
+	});
+
 	function reset() {
 		environmentId = suggested ?? '';
 		file = null;
 		uploadError = null;
 		archive = null;
 		used = false;
-		name = displayName = '';
+		name = displayName = description = '';
 		deployAfter = true;
 		preview = null;
 		checkedKey = null;
@@ -237,6 +271,7 @@
 				archive = a;
 				name = defaultName(a);
 				displayName = a.displayName ?? '';
+				description = a.description ?? '';
 			})
 			.catch((e: unknown) => {
 				if (transfer !== up) return;
@@ -348,8 +383,10 @@
 		ended.add(job.id);
 		imports.markFinished(job);
 		finished = job;
-		// The stack is kept and the upload gone when only the deploy failed.
-		if (importOutcome(job) === 'deploy_failed') used = true;
+		// Only the deploy failed: the stack is kept and the upload gone.
+		// Anything else kept nothing: the upload stays for Try Again and is
+		// discarded when the dialog closes.
+		used = importOutcome(job) !== 'failed';
 		refresh();
 		if (job.state === 'succeeded') {
 			const what = jobName || created.data?.name || 'the stack';
@@ -379,6 +416,8 @@
 	<div
 		class="drop"
 		class:dragging
+		role="region"
+		aria-label="Archive File"
 		ondragover={(e) => {
 			e.preventDefault();
 			dragging = true;
@@ -501,6 +540,7 @@
 			error={nameMsg}
 		/>
 		<TextField label="Display Name" bind:value={displayName} optional />
+		<TextField label="Description" bind:value={description} optional />
 		{#if mayDeploy}
 			<Checkbox bind:checked={deployAfter} label="Deploy After Creating" />
 		{/if}
@@ -610,8 +650,6 @@
 					<ErrorState
 						error={checkError}
 						title="The archive could not be checked."
-						onretry={() => void runCheck()}
-						retrying={checking}
 						bare
 						compact
 					/>
@@ -645,6 +683,9 @@
 			<Button variant="ghost" disabled={starting} onclick={() => (open = false)}
 				>Cancel</Button
 			>
+			{#if archive && checkError && !checking}
+				<Button onclick={() => void runCheck()}>Check Again</Button>
+			{/if}
 			{#if archive}
 				<Button
 					variant="primary"

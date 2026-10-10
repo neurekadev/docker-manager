@@ -74,7 +74,9 @@ day; the download is a ranged file response.
    (manifest, every part re-encoded to nowhere, sizes, the root Compose
    files for a pinned `name:`); invalid archives are deleted, valid ones get
    a sidecar and live a day. At most five per user, uploads in progress
-   included; an archive may unpack to at most 100 times its size (at least
+   included: at the limit the oldest one no stack is being created from is
+   discarded (an upload abandoned in a closed tab never locks its owner
+   out); the gzip trailer's checksum is verified; an archive may unpack to at most 100 times its size (at least
    the archive limit). A body that ends early is `upload_incomplete`, never
    taken for a complete archive.
 2. **Check** (`create-stack-archive-import-preview`, pure `evaluateImport`
@@ -83,9 +85,11 @@ day; the download is a ranged file response.
    the containers, volumes and networks the stack creates (names that follow
    the old project name follow the new one), ports, external networks and
    volumes, free space, images built on the source that are not there.
-3. **Start** (`create-stack-archive-import`, stored idempotency): the stack
-   is reserved (undeployed, no files) and `stack.import_archive` queued
-   (targets: the stack and its new volumes, lock only).
+3. **Start** (`create-stack-archive-import`, stored idempotency): the
+   upload is claimed (one stack at a time), the stack reserved (undeployed,
+   no files; display name and description each the request's when sent,
+   else the archive's) and `stack.import_archive` queued (targets: the stack
+   and its new volumes, lock only).
 
 `stack.import_archive` (manager executor; locks: host shared, the stack and
 the new volumes exclusive; capability `stack.create`, `prepare` re-checks
@@ -101,6 +105,11 @@ the new volumes exclusive; capability `stack.create`, `prepare` re-checks
    deploys do): the first (observed) revision, the services. A top-level
    `name:` pinning another name is caught earlier, from the archive itself
    (`PinnedName` at upload, the check's `project_name_pinned` blocker).
+   The destination then reports the names Compose gives the committed
+   project's volumes (`migration.preview`): they, not the archive's guess
+   (a name `<old project>_<key>` follows the new name), decide where the
+   data goes; one that differs must not exist yet, and the cleanup covers
+   it.
 5. **transfer_volumes** — each volume through `migration.receive` with
    `compose: {stack, key}`: the agent creates it exactly as Compose would for
    the new stack (name, labels, configuration hash) and fills it.

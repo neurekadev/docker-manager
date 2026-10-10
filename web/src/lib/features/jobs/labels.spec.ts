@@ -201,6 +201,15 @@ describe('job labels (#26 catalog)', () => {
 				targets: [{ type: 'stack', id: 's9' }]
 			})?.href
 		).toBe('/stacks?fromArchive=1&environment=e1');
+		// Only its deploy was refused: the stack exists.
+		expect(
+			jobAgain({
+				...base,
+				kind: 'stack.import_archive',
+				targets: [{ type: 'stack', id: 's9' }],
+				error: { class: 'deploy_failed' }
+			})
+		).toEqual({ href: '/stacks/s9', label: 'Open the Stack' });
 		expect(jobAgain({ ...base, kind: 'files.copy' })).toBeNull();
 	});
 

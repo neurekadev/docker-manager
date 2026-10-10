@@ -104,7 +104,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeMigrationBlocked, http.StatusConflict, false, "The migration's preflight check has blockers (details lists them: platform, name or port conflicts, missing external networks, free space, offline agents, ...); preview the migration, resolve them and retry.", 35},
 		{CodeStackArchiveBlocked, http.StatusConflict, false, "The stack export or the stack creation from an archive has blockers (details lists them: offline environments, Docker Manager's own stack, name, folder, volume or port conflicts, free space, a project name the archive pins, volumes the caller may not download); check again, resolve them and retry.", 313},
 		{CodeStackArchiveInUse, http.StatusConflict, false, "A stack is being created from this uploaded archive; wait for the job to finish.", 313},
-		{CodeTooManyStackArchives, http.StatusConflict, false, "The caller already has five uploaded stack archives waiting; create stacks from them or discard them first.", 313},
+		{CodeTooManyStackArchives, http.StatusConflict, false, "The caller already has five uploaded stack archives that are in use or still arriving; wait for those stack creations or uploads to finish.", 313},
 		{CodeMigrationNotCompleted, http.StatusConflict, false, "The source of a stack migration can be removed only after the migration completed.", 35},
 		{CodeMigrationSourceRemoved, http.StatusConflict, false, "The migration's source was already removed.", 35},
 		{CodeMigrationSourceInUse, http.StatusConflict, false, "A Docker Manager stack on the source environment manages the migrated project again (it was imported back); its files are not removed.", 35},

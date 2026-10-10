@@ -15,11 +15,13 @@
 	// user may not download one of its volumes: then the manager names no
 	// archive and none downloads). Closed while
 	// the export runs, the stack's job tray shows it on, and its success
-	// toast offers the download.
+	// toast offers the download. Only the caller's own running export is
+	// shown here, never another user's.
 	import { onDestroy, untrack } from 'svelte';
-	import { useQueryClient } from '@tanstack/svelte-query';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import Download from '@lucide/svelte/icons/download';
 	import type { Job } from '$lib/api/client';
+	import { sessionQuery } from '$lib/api/queries';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { criticalWork } from '$lib/live';
@@ -55,6 +57,7 @@
 		includeChoice,
 		limitRelevant,
 		notPermittedKeys,
+		ownJob,
 		type StackArchiveVolume,
 		type StackExportFile,
 		type StackExportPreview
@@ -73,6 +76,7 @@
 
 	let { open = $bindable(false), stack, tray }: Props = $props();
 	const queryClient = useQueryClient();
+	const session = createQuery(() => sessionQuery());
 	const title = $derived(stackTitle(stack));
 	const stackId = $derived(stack.id);
 
@@ -186,10 +190,10 @@
 
 	// A running export (started here, elsewhere, or before a reload).
 	$effect(() => {
-		const job = exports.running[0];
+		const job = ownJob(exports.running, session.data?.user?.id, ended);
 		if (!open || !job) return;
 		untrack(() => {
-			if (!jobId && !starting && !ended.has(job.id)) follow(job.id);
+			if (!jobId && !starting) follow(job.id);
 		});
 	});
 
@@ -272,10 +276,14 @@
 		void runCheck();
 	}
 
-	// Nothing to say while the first check failed (its error shows).
 	const blocker = $derived(
-		!preview && !checking ? undefined : exportBlocker({ preview, checking, stale: changed })
+		exportBlocker({ preview, checking, stale: changed, failed: !!checkError })
 	);
+
+	// The footer's Check Again after a failed check.
+	function checkAgain() {
+		void (preview ? runCheck() : firstCheck());
+	}
 
 	const columns: Column<StackArchiveVolume>[] = [
 		{ id: 'name', header: 'Volume', cell: volName, stack: 'title', title: (v) => v.name },
@@ -355,13 +363,7 @@
 		{:else if !preview && checking}
 			<div aria-busy="true"><Skeleton lines={5} /></div>
 		{:else if !preview && checkError}
-			<ErrorState
-				error={checkError}
-				title="The export could not be checked."
-				onretry={() => void firstCheck()}
-				retrying={checking}
-				bare
-			/>
+			<ErrorState error={checkError} title="The export could not be checked." bare />
 		{:else if preview}
 			{@const head = archiveHeadline(preview, 'export')}
 			{@const downtime = exportDowntime(title, preview)}
@@ -374,8 +376,6 @@
 					<ErrorState
 						error={checkError}
 						title="The check could not run again with your changes."
-						onretry={() => void runCheck()}
-						retrying={checking}
 						bare
 						compact
 					/>
@@ -466,6 +466,9 @@
 			<Button variant="ghost" disabled={starting} onclick={() => (open = false)}
 				>Cancel</Button
 			>
+			{#if checkError && !checking}
+				<Button onclick={checkAgain}>Check Again</Button>
+			{/if}
 			<Button
 				variant="primary"
 				icon={Download}

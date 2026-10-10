@@ -430,24 +430,42 @@ func TestUploads(t *testing.T) {
 	if err := w.svc.DeleteUpload(bob, u.ID); !errors.Is(err, ErrUploadNotFound) {
 		t.Errorf("another user discards the upload: %v", err)
 	}
-	for range MaxUploadsPerUser - 2 {
-		if _, err := store(int64(len(b)), b); err != nil {
+	var ids []string
+	for range MaxUploadsPerUser - 1 {
+		w.clk.Advance(time.Second) // distinct upload times: the oldest is known
+		x, err := store(int64(len(b)), b)
+		if err != nil {
 			t.Fatal(err)
 		}
+		ids = append(ids, x.ID)
 	}
-	// An upload still in progress counts too.
+	// At the limit the oldest upload no stack is created from makes room.
 	w.svc.mu.Lock()
+	w.svc.inUse[u.ID] = "st-x"
+	w.svc.mu.Unlock()
+	if _, err := store(int64(len(b)), b); err != nil {
+		t.Fatalf("at the limit: %v", err)
+	}
+	if _, err := w.svc.Upload(w.user, ids[0]); !errors.Is(err, ErrUploadNotFound) {
+		t.Errorf("the oldest unused upload is kept: %v", err)
+	}
+	if _, err := w.svc.Upload(w.user, u.ID); err != nil {
+		t.Errorf("the upload in use was discarded: %v", err)
+	}
+	// When every upload is in use or still arriving, the limit refuses.
+	w.svc.mu.Lock()
+	for id := range w.svc.uploads {
+		w.svc.inUse[id] = "st-x"
+	}
 	w.svc.pending["in-flight"] = "u-alice"
 	w.svc.mu.Unlock()
 	if _, err := store(int64(len(b)), b); !errors.Is(err, ErrTooManyUploads) {
-		t.Errorf("one too many: %v", err)
+		t.Errorf("all in use: %v", err)
 	}
 	w.svc.mu.Lock()
+	clear(w.svc.inUse)
 	delete(w.svc.pending, "in-flight")
 	w.svc.mu.Unlock()
-	if _, err := store(int64(len(b)), b); err != nil {
-		t.Fatal(err)
-	}
 
 	// A restart reads the uploads back; a day later they are gone, and so
 	// is the export.
@@ -465,5 +483,30 @@ func TestUploads(t *testing.T) {
 	}
 	if _, err := os.Stat(again.exportPath(f.JobID)); !os.IsNotExist(err) {
 		t.Errorf("the expired export is kept: %v", err)
+	}
+}
+
+// TestImportKeepsExplicitVolumeNames: a volume the Compose file names
+// itself keeps that name under a new stack name, although it looks like
+// one derived from the old project's (the definition decides, not the
+// archive's guess).
+func TestImportKeepsExplicitVolumeNames(t *testing.T) {
+	w := newWorld(t)
+	compose := strings.Replace(migrationtest.ShopCompose, "  dbdata: {}\n", "  dbdata:\n    name: shop_dbdata\n", 1)
+	w.src.Host.Put(w.src.ProjectDir("shop")+"/compose.yaml", migrationtest.Entry{Mode: 0o644, MTime: migrationtest.ShopTime, Data: compose})
+	u := w.upload(w.export(ExportRequest{}))
+	_, j, err := w.svc.StartImport(w.ctx, w.user, u.ID, ImportRequest{EnvironmentID: dstEnv, Name: "boutique"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res := w.run(j); res.Outcome != string(domain.JobSucceeded) {
+		t.Fatalf("import ended %s (%s): %s", res.Outcome, res.ErrorClass, res.Message)
+	}
+	v, err := w.dst.Engine.InspectVolume(w.ctx, "shop_dbdata")
+	if err != nil || v.Labels["com.docker.compose.project"] != "boutique" {
+		t.Fatalf("volume %+v, %v", v, err)
+	}
+	if _, err := w.dst.Engine.InspectVolume(w.ctx, "boutique_dbdata"); err == nil {
+		t.Error("a volume under the derived name was created")
 	}
 }

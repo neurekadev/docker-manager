@@ -163,23 +163,37 @@ describe('create from an archive', () => {
 		expect(archiveContents({ projectBytes: 1024, volumes: [] })).toBe('0 volumes · 1 KB');
 	});
 
-	it('sends the choice trimmed, without an empty display name or a deploy not asked for', () => {
-		const c = { environmentId: 'env-1', name: ' web ', displayName: '  ', deploy: false };
+	it('sends the choice trimmed, an emptied display name and description too, no deploy not asked for', () => {
+		const c = {
+			environmentId: 'env-1',
+			name: ' web ',
+			displayName: '  ',
+			description: '',
+			deploy: false
+		};
 		expect(importBody(c)).toEqual({
 			environmentId: 'env-1',
 			name: 'web',
-			displayName: undefined,
+			displayName: '',
+			description: '',
 			deploy: undefined
 		});
-		expect(importBody({ ...c, displayName: 'Web', deploy: true })).toMatchObject({
-			displayName: 'Web',
-			deploy: true
-		});
+		expect(
+			importBody({ ...c, displayName: 'Web', description: ' Shop ', deploy: true })
+		).toMatchObject({ displayName: 'Web', description: 'Shop', deploy: true });
 	});
 
 	it('checks again when the environment, the name or the deploy change, not the display name', () => {
-		const c = { environmentId: 'env-1', name: 'web', displayName: '', deploy: true };
-		expect(importKey('a-1', c)).toBe(importKey('a-1', { ...c, displayName: 'Web' }));
+		const c = {
+			environmentId: 'env-1',
+			name: 'web',
+			displayName: '',
+			description: '',
+			deploy: true
+		};
+		expect(importKey('a-1', c)).toBe(
+			importKey('a-1', { ...c, displayName: 'Web', description: 'Shop' })
+		);
 		expect(importKey('a-1', c)).not.toBe(importKey('a-1', { ...c, name: 'web2' }));
 		expect(importKey('a-1', c)).not.toBe(importKey('a-1', { ...c, environmentId: 'env-2' }));
 		expect(importKey('a-1', c)).not.toBe(importKey('a-1', { ...c, deploy: false }));
@@ -206,6 +220,13 @@ describe('blockers', () => {
 			'Fix the problem first.'
 		);
 		expect(exportBlocker({ preview: ok, checking: false, stale: false })).toBeUndefined();
+		// A failed check does not read as one still running.
+		expect(exportBlocker({ preview: null, checking: false, stale: false, failed: true })).toBe(
+			'Check again to continue.'
+		);
+		expect(exportBlocker({ preview: ok, checking: true, stale: true, failed: true })).toBe(
+			'Checking…'
+		);
 	});
 
 	it('keeps Create Stack off without an environment, with a bad name, offline or with problems', () => {

@@ -35,10 +35,10 @@ const (
 type ImportRequest struct {
 	EnvironmentID string
 	// Name is the new stack's (Compose project) name; DisplayName and
-	// Description its display metadata (default: the archive's).
+	// Description its display metadata (nil: the archive's; "" none).
 	Name        string
-	DisplayName string
-	Description string
+	DisplayName *string
+	Description *string
 	// Deploy deploys the stack once its files and volumes are in place.
 	Deploy bool
 }
@@ -344,9 +344,12 @@ func (s *Service) StartImport(ctx context.Context, p authz.Principal, archiveID 
 		return domain.Stack{}, domain.Job{}, &BlockedError{Blockers: plan.Blockers}
 	}
 	m := u.Manifest
-	displayName, description := r.DisplayName, r.Description
-	if displayName == "" && description == "" {
-		displayName, description = m.Stack.DisplayName, m.Stack.Description
+	displayName, description := m.Stack.DisplayName, m.Stack.Description
+	if r.DisplayName != nil {
+		displayName = *r.DisplayName
+	}
+	if r.Description != nil {
+		description = *r.Description
 	}
 	st, err := s.opts.Stacks.ReserveArchiveStack(ctx, domain.StackFromArchive{EnvironmentID: r.EnvironmentID, Name: r.Name,
 		DisplayName: displayName, Meta: domain.DisplayMeta{Description: description}, Links: m.Stack.Links,
@@ -394,6 +397,9 @@ type importOutput struct {
 	Parts     []string `json:"parts,omitempty"`
 	Committed bool     `json:"committed,omitempty"`
 	Recorded  bool     `json:"recorded,omitempty"`
+	// VolumeNames are the names Compose gives the volumes of the committed
+	// project, by key (they decide where the data goes).
+	VolumeNames map[string]string `json:"volumeNames,omitempty"`
 	// Kept: the stack keeps its files and volumes (nothing is undone, a
 	// failed deploy included).
 	Kept        bool   `json:"kept,omitempty"`
@@ -687,7 +693,8 @@ func (s *Service) importCheck(ctx context.Context, sc *jobexec.StepContext) erro
 		return err
 	}
 	sc.Progress(ctx, 35, "reading the Compose definition back")
-	if _, err := s.opts.Stacks.RecordArchiveStack(ctx, in.StackID, principalOf(j)); err != nil {
+	st, err := s.opts.Stacks.RecordArchiveStack(ctx, in.StackID, principalOf(j))
+	if err != nil {
 		var se *domain.StackError
 		switch {
 		case errors.As(err, &se) && se.Code == domain.StackErrInvalidDefinition:
@@ -702,7 +709,47 @@ func (s *Service) importCheck(ctx context.Context, sc *jobexec.StepContext) erro
 		}
 		return &classed{class: ClassTransferFailed, err: err, recovery: recoveryImport}
 	}
-	return writeImportOutput(ctx, sc, func(o *importOutput) { o.Recorded = true })
+	names, err := s.composeVolumeNames(ctx, st, in)
+	if err != nil {
+		return err
+	}
+	return writeImportOutput(ctx, sc, func(o *importOutput) { o.Recorded, o.VolumeNames = true, names })
+}
+
+// composeVolumeNames asks the destination which names Compose gives the
+// volumes of the committed project under the new stack's name: the check
+// derived them from the archive (a volume named after the old project
+// follows the new one), but only the definition decides (an explicit
+// name: equal to <old project>_<key> stays). A volume whose name differs
+// from the checked one must not exist yet; the cleanup covers it too.
+func (s *Service) composeVolumeNames(ctx context.Context, st domain.Stack, in importInput) (map[string]string, error) {
+	out := map[string]string{}
+	if len(in.Volumes) == 0 {
+		return out, nil
+	}
+	facts, err := s.sourceFacts(ctx, st, false)
+	if err != nil {
+		return nil, agentFailure(err, ClassTransferFailed, recoveryImport)
+	}
+	byKey := map[string]protocol.MigrationVolumeFacts{}
+	for _, v := range facts.Volumes {
+		if v.Key != "" {
+			byKey[v.Key] = v
+		}
+	}
+	for _, v := range in.Volumes {
+		f, ok := byKey[v.Key]
+		switch {
+		case !ok || f.External || f.Anonymous:
+			return nil, &classed{class: ClassInvalid, err: fmt.Errorf("the archive's volume %s is not a volume of the Compose definition", v.Key),
+				recovery: recoveryNothingKept + "The archive's files and volumes disagree; export the stack again."}
+		case f.Name != v.Name && f.Exists:
+			return nil, &classed{class: ClassBlocked, err: fmt.Errorf("the Compose file names the volume %s %s, which already exists here", v.Key, f.Name),
+				recovery: recoveryImport}
+		}
+		out[v.Key] = f.Name
+	}
+	return out, nil
 }
 
 func (s *Service) importVolumes(ctx context.Context, sc *jobexec.StepContext) error {
@@ -718,8 +765,24 @@ func (s *Service) importVolumes(ctx context.Context, sc *jobexec.StepContext) er
 	if err != nil {
 		return err
 	}
+	names := readImportOutput(sc.Output()).VolumeNames
+	// Registered again with the names Compose gives the volumes (the
+	// cleanup only removes volumes this job created).
+	all := in.volumeNames()
+	for _, n := range names {
+		if !slices.Contains(all, n) {
+			all = append(all, n)
+		}
+	}
+	if err := sc.AddCompensation(ctx, jobspec.CompRemoveArchiveImport, removeArgs{JobID: sc.JobID, Environment: st.EnvironmentID,
+		Project: in.Name, Volumes: all}); err != nil {
+		return err
+	}
 	ref := stackRef(st)
 	for i, v := range in.Volumes {
+		if n := names[v.Key]; n != "" {
+			v.Name = n
+		}
 		p := Part{Volume: v.Key}
 		if slices.Contains(readImportOutput(sc.Output()).Parts, p.Name()) {
 			continue

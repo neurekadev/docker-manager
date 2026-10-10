@@ -273,6 +273,14 @@ func TestReaderRefuses(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+	t.Run("checksum", func(t *testing.T) {
+		b := writeArchive(t, testManifest(), map[Part][]byte{{}: transferTar(t, projectPart...), {Volume: "dbdata"}: transferTar(t, volumePart...)},
+			Part{}, Part{Volume: "dbdata"})
+		b[len(b)-8] ^= 0xff // the gzip trailer's CRC-32
+		if err := readAll(b); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("err = %v", err)
+		}
+	})
 	t.Run("decompression bomb", func(t *testing.T) {
 		b := writeArchive(t, testManifest(), map[Part][]byte{{}: transferTar(t, projectPart...), {Volume: "dbdata"}: transferTar(t, volumePart...)},
 			Part{}, Part{Volume: "dbdata"})

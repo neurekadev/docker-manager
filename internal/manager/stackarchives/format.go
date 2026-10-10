@@ -333,6 +333,8 @@ type Reader struct {
 	eof      bool
 	// compose holds the project's root Compose files read on the way.
 	compose map[string][]byte
+	// src is the (decompressed) tar stream.
+	src io.Reader
 	// Limit bounds the bytes of the archive's files (0: none); total
 	// counts them.
 	Limit int64
@@ -371,7 +373,7 @@ func NewReader(r io.Reader) (*Reader, error) {
 		}
 		src = gz
 	}
-	rd := &Reader{tr: tar.NewReader(src), seen: map[string]bool{}, compose: map[string][]byte{}}
+	rd := &Reader{tr: tar.NewReader(src), src: src, seen: map[string]bool{}, compose: map[string][]byte{}}
 	if err := rd.advance(); err != nil {
 		return nil, err
 	}
@@ -426,6 +428,16 @@ func (r *Reader) advance() error {
 		r.pending, r.pendName = hdr, name
 		return nil
 	}
+}
+
+// Close reads the archive to its end after the last part: the tar padding
+// and, for a gzip-compressed archive, its trailer, whose checksum covers
+// every byte (corruption the tar layout does not show).
+func (r *Reader) Close() error {
+	if _, err := io.Copy(io.Discard, r.src); err != nil {
+		return invalid(err)
+	}
+	return nil
 }
 
 // Manifest returns the archive's manifest.

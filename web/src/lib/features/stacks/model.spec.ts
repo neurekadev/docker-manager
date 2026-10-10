@@ -461,6 +461,8 @@ describe('migration, updates and jobs', () => {
 		expect(auditActionLabel('stack.definition.read')).toBe('Opened the Definition');
 		expect(auditActionLabel('stack.validate')).toBe('Validated the Definition');
 		expect(auditActionLabel('stack.restart')).toBe('Restart Stack');
+		expect(auditActionLabel('stack.export.preview')).toBe('Check Stack Export');
+		expect(auditActionLabel('stack.export')).toBe('Export Archive');
 		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
 	});
 });

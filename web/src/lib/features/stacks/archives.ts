@@ -149,16 +149,21 @@ export interface ImportChoice {
 	environmentId: string;
 	name: string;
 	displayName: string;
+	description: string;
 	deploy: boolean;
 }
 
-/** The request body of an import check or import for a choice. */
+/**
+ * The request body of an import check or import for a choice. The display
+ * name and description are always sent (an empty one stays empty; left
+ * out, the manager would take the archive's).
+ */
 export function importBody(c: ImportChoice): Schema<'StackArchiveImportBody'> {
-	const display = c.displayName.trim();
 	return {
 		environmentId: c.environmentId,
 		name: c.name.trim(),
-		displayName: display || undefined,
+		displayName: c.displayName.trim(),
+		description: c.description.trim(),
 		deploy: c.deploy || undefined
 	};
 }
@@ -175,16 +180,20 @@ export function renamedVolumes(
 	return volumes.filter((v) => v.source !== v.name);
 }
 
-/** What keeps a check's button off: a check in flight, or its problems. */
+/** What keeps a check's button off: a check in flight or failed, or its problems. */
 function checkBlocker(
 	c: {
 		preview: { allowed: boolean; blockers: readonly unknown[] } | null;
 		checking: boolean;
 		stale: boolean;
+		/** The last check failed (its error offers to check again). */
+		failed?: boolean;
 	},
 	what: string
 ): string | undefined {
-	if (c.checking || c.stale || !c.preview) return 'Checking…';
+	if (c.checking) return 'Checking…';
+	if (c.failed) return 'Check again to continue.';
+	if (c.stale || !c.preview) return 'Checking…';
 	if (!c.preview.allowed)
 		return c.preview.blockers.length
 			? `Fix ${c.preview.blockers.length === 1 ? 'the problem' : 'the problems'} first.`

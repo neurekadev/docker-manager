@@ -3755,7 +3755,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a stack archive
-         * @description Uploads an archive written by a stack export (raw body, Content-Length required; 413 above DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB). It is stored on the manager and validated on the way (422 invalid_stack_archive), nothing reaches a host. Create a stack from it with POST /stack-archives/{archiveId}/imports within a day; only the uploader sees it. Needs stack.create in at least one environment; at most five uploads per user wait at once (409 too_many_stack_archives); 507 manager_space when the manager's disk is too full. The reverse proxy's body limit must allow the archive's size.
+         * @description Uploads an archive written by a stack export (raw body, Content-Length required; 413 above DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB). It is stored on the manager and validated on the way (422 invalid_stack_archive), nothing reaches a host. Create a stack from it with POST /stack-archives/{archiveId}/imports within a day; only the uploader sees it. Needs stack.create in at least one environment; at most five uploads per user wait at once: the oldest one no stack is being created from makes room (409 too_many_stack_archives when none can); 507 manager_space when the manager's disk is too full. The reverse proxy's body limit must allow the archive's size.
          */
         post: operations["create-stack-archive"];
         delete?: never;
@@ -12305,9 +12305,15 @@ export interface components {
         StackArchiveImportBody: {
             /** @description Deploy the stack once its files and volumes are in place (also needs stack.deploy). */
             deploy?: boolean;
-            /** @description Default: the archive's. */
+            /**
+             * @description Omitted: the archive's; empty: none.
+             * @example Orders and payments
+             */
             description?: string;
-            /** @description Default: the archive's. */
+            /**
+             * @description Omitted: the archive's; empty: none.
+             * @example Shop
+             */
             displayName?: string;
             /**
              * @description The environment the stack is created in.
@@ -41640,6 +41646,8 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "description": "Orders and payments",
+                 *       "displayName": "Shop",
                  *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
                  *       "name": "web"
                  *     }
@@ -41793,6 +41801,8 @@ export interface operations {
             content: {
                 /**
                  * @example {
+                 *       "description": "Orders and payments",
+                 *       "displayName": "Shop",
                  *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
                  *       "name": "web"
                  *     }

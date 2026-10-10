@@ -85,6 +85,18 @@ export function discardStackArchive(archiveId: string, client: ApiClient = api):
 	);
 }
 
+/**
+ * Discards the caller's upload while the page goes away (`pagehide`): a
+ * keepalive request outlives the page; nobody waits for its answer.
+ */
+export function discardStackArchiveOnUnload(archiveId: string) {
+	void fetch(`/api/v1/stack-archives/${encodeURIComponent(archiveId)}`, {
+		method: 'DELETE',
+		keepalive: true,
+		credentials: 'same-origin'
+	}).catch(() => undefined);
+}
+
 /** POST /stack-archives/{id}/import-previews: checks the environment. Changes nothing. */
 export function previewArchiveImport(
 	archiveId: string,

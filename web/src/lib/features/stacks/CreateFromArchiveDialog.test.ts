@@ -5,7 +5,7 @@
 // Cancel discards the upload. After a reload only the caller's own running
 // import is shown; one whose deploy could not start keeps its stack.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render, screen, waitFor, within } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
@@ -61,6 +61,7 @@ const archive: StackArchive = {
 	exportedAt: '2026-10-09T08:00:00Z',
 	name: 'silo',
 	displayName: 'Silo',
+	description: 'Personal cloud',
 	projectBytes: 1024,
 	projectEntries: 4,
 	volumes: [
@@ -203,6 +204,11 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+/** The dialog's footer (its buttons, apart from the header's Close icon). */
+function footer(): HTMLElement {
+	return document.querySelector<HTMLElement>('.dy-dialog-foot')!;
+}
+
 function dialog() {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	render(QueryHarness, {
@@ -257,7 +263,13 @@ describe('CreateFromArchiveDialog', () => {
 		// The check runs on its own.
 		await waitFor(() =>
 			expect(checks).toEqual([
-				{ environmentId: 'env-1', name: 'silo', displayName: 'Silo', deploy: true }
+				{
+					environmentId: 'env-1',
+					name: 'silo',
+					displayName: 'Silo',
+					description: 'Personal cloud',
+					deploy: true
+				}
 			])
 		);
 		await waitFor(() =>
@@ -300,7 +312,13 @@ describe('CreateFromArchiveDialog', () => {
 		await user.click(screen.getByRole('button', { name: 'Create Stack' }));
 		await waitFor(() =>
 			expect(imports).toEqual([
-				{ environmentId: 'env-1', name: 'cloud', displayName: 'Silo', deploy: true }
+				{
+					environmentId: 'env-1',
+					name: 'cloud',
+					displayName: 'Silo',
+					description: 'Personal cloud',
+					deploy: true
+				}
 			])
 		);
 		expect(
@@ -365,8 +383,62 @@ describe('CreateFromArchiveDialog', () => {
 			)
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Open Stack' })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+		// The footer's Close (the dialog's header has a Close icon too).
+		expect(within(footer()).getByRole('button', { name: 'Close' })).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Try Again' })).toBeNull();
 		expect(screen.queryByText(/stays uploaded/)).toBeNull();
+	});
+
+	it('sends an emptied display name and description as they are', async () => {
+		const user = setup();
+		dialog();
+		const { xhr } = await choose(user);
+		xhr.respond(201, archive);
+		expect(await screen.findByRole('textbox', { name: /^Description/ })).toHaveValue(
+			'Personal cloud'
+		);
+		await waitFor(() => expect(checks).toHaveLength(1));
+		await user.clear(screen.getByRole('textbox', { name: /^Display Name/ }));
+		await user.clear(screen.getByRole('textbox', { name: /^Description/ }));
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Create Stack' })).toBeEnabled()
+		);
+		await user.click(screen.getByRole('button', { name: 'Create Stack' }));
+		await waitFor(() =>
+			expect(imports).toEqual([
+				{
+					environmentId: 'env-1',
+					name: 'silo',
+					displayName: '',
+					description: '',
+					deploy: true
+				}
+			])
+		);
+	});
+
+	it('keeps the upload for Try Again after a failed import, and discards it on Close', async () => {
+		importJob = job({
+			state: 'failed',
+			error: {
+				class: 'transfer_failed',
+				message: 'the copy failed',
+				recovery: 'Try again.'
+			}
+		});
+		const user = setup();
+		dialog();
+		const { xhr } = await choose(user);
+		xhr.respond(201, archive);
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Create Stack' })).toBeEnabled()
+		);
+		await user.click(screen.getByRole('button', { name: 'Create Stack' }));
+		expect(
+			await within(footer()).findByRole('button', { name: 'Try Again' })
+		).toBeInTheDocument();
+		expect(deleted).toEqual([]);
+		await user.click(within(footer()).getByRole('button', { name: 'Close' }));
+		await waitFor(() => expect(deleted).toEqual(['/api/v1/stack-archives/ar-1']));
 	});
 });

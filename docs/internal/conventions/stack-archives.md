@@ -26,6 +26,8 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
   `MigrationVolumeSpec.Compose` after the project is committed, so their
   name, labels and configuration hash are Compose's for the new stack;
   send it only to agents announcing `protocol.FeatureMigrationComposeVolume`.
+  The names come from the destination's view of the committed project
+  (`composeVolumeNames`), never from the archive alone.
 - An export stops the stack (`migration.stop`) only after registering the
   `start_stack` compensation, and starts it again before the job ends; Docker
   Manager's own stack (#32) is refused before a job exists and again in

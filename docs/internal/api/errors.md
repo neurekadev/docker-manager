@@ -143,7 +143,7 @@ same change.
 | `migration_blocked` | 409 | no | The migration's preflight check has blockers (`details` lists them: platform, name or port conflicts, missing external networks, free space, offline agents, ...); preview the migration, resolve them and retry. | #35 |
 | `stack_archive_blocked` | 409 | no | The stack export or the stack creation from an archive has blockers (`details` lists them: offline environments, Docker Manager's own stack, name, folder, volume or port conflicts, free space, a project name the archive pins, volumes the caller may not download); check again, resolve them and retry. | #313 |
 | `stack_archive_in_use` | 409 | no | A stack is being created from this uploaded archive; wait for the job to finish. | #313 |
-| `too_many_stack_archives` | 409 | no | The caller already has five uploaded stack archives waiting; create stacks from them or discard them first. | #313 |
+| `too_many_stack_archives` | 409 | no | The caller already has five uploaded stack archives that are in use or still arriving; wait for those stack creations or uploads to finish. | #313 |
 | `migration_not_completed` | 409 | no | The source of a stack migration can be removed only after the migration completed. | #35 |
 | `migration_source_removed` | 409 | no | The migration's source was already removed. | #35 |
 | `migration_source_in_use` | 409 | no | A Docker Manager stack on the source environment manages the migrated project again (it was imported back); its files are not removed. | #35 |

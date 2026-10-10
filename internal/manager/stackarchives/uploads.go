@@ -108,12 +108,19 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 	}
 	id := ids.New()
 	// Uploads in progress count toward the user's limit, and their size is
-	// claimed of the free space until they end.
+	// claimed of the free space until they end. At the limit, the user's
+	// oldest upload no stack is being created from makes room (an upload
+	// abandoned in a closed tab must not lock its owner out for a day).
 	s.mu.Lock()
-	n := 0
-	for _, u := range s.uploads {
-		if u.OwnerUserID == p.UserID {
-			n++
+	n, oldest := 0, ""
+	for uid, u := range s.uploads {
+		if u.OwnerUserID != p.UserID {
+			continue
+		}
+		n++
+		if _, used := s.inUse[uid]; !used && (oldest == "" || u.CreatedAt.Before(s.uploads[oldest].CreatedAt) ||
+			u.CreatedAt.Equal(s.uploads[oldest].CreatedAt) && uid < oldest) {
+			oldest = uid
 		}
 	}
 	for _, owner := range s.pending {
@@ -121,12 +128,20 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 			n++
 		}
 	}
-	if n >= MaxUploadsPerUser {
+	if n >= MaxUploadsPerUser && oldest == "" {
 		s.mu.Unlock()
 		return Upload{}, ErrTooManyUploads
 	}
+	evict := n >= MaxUploadsPerUser
+	if evict {
+		delete(s.uploads, oldest)
+	}
 	s.pending[id] = p.UserID
 	s.mu.Unlock()
+	if evict {
+		s.removeUpload(oldest)
+		s.log.Info("discarded the oldest stack archive upload to make room", "archive_id", oldest)
+	}
 	defer func() {
 		s.mu.Lock()
 		delete(s.pending, id)
@@ -280,6 +295,9 @@ func inspect(r io.Reader, limit int64) (Upload, error) {
 			u.Volumes[p.Volume] = st
 		}
 	}
+	if err := rd.Close(); err != nil {
+		return Upload{}, err
+	}
 	u.PinnedName = PinnedName(rd.ComposeFiles())
 	return u, nil
 }
@@ -310,17 +328,19 @@ func (s *Service) Uploads(p authz.Principal) []Upload {
 	return out
 }
 
-// DeleteUpload discards p's upload.
+// DeleteUpload discards p's upload (not while a stack is created from it:
+// the check and the removal from the list are one step).
 func (s *Service) DeleteUpload(p authz.Principal, id string) error {
 	if _, err := s.Upload(p, id); err != nil {
 		return err
 	}
 	s.mu.Lock()
-	_, used := s.inUse[id]
-	s.mu.Unlock()
-	if used {
+	if _, used := s.inUse[id]; used {
+		s.mu.Unlock()
 		return ErrUploadInUse
 	}
+	delete(s.uploads, id)
+	s.mu.Unlock()
 	s.removeUpload(id)
 	return nil
 }
