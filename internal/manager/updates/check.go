@@ -241,7 +241,10 @@ func (s *Service) checkStack(ctx context.Context, p domain.UpdatePolicy, jobID s
 	slices.SortFunc(services, func(a, b domain.StackServiceDef) int { return strings.Compare(a.Name, b.Name) })
 	excludedByLabel := map[string]bool{}
 	if s.opts.Resources != nil {
-		containers, err := s.opts.Resources.ListContainers(ctx, p.EnvironmentID)
+		// Only the stack's containers: the checks of every policy start
+		// together, and a full listing per check would hold the agent's
+		// request slots on a loaded host (#307).
+		containers, err := s.opts.Resources.ListProjectContainers(ctx, p.EnvironmentID, st.Name)
 		if err != nil {
 			return nil, out, err
 		}

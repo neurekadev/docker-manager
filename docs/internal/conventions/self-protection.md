@@ -22,5 +22,8 @@ images, volumes, networks and Compose project are protected for everyone
   protected objects out before any request and list them with the reason
   in the confirmation and the summary; each remaining object goes through
   its own request, so the server's refusal still applies.
+- `protect.Guard.Identify` decides from the container list alone and never
+  inspects a container (#307): the Engine can block an inspection for
+  minutes while it removes a container, and every listing identifies.
 - No override flag: only the co-located manager's restart takes
   `confirm: true`.

@@ -589,3 +589,128 @@ func TestSelfProtectionInExecutors(t *testing.T) {
 		t.Fatalf("inspect protections %+v %+v %+v", im.Protection, nw.Protection, d2.Protection)
 	}
 }
+
+// TestContainerListOfAProject (#307): container.list with a project lists
+// only the containers of that Compose project, with their stack and
+// protection; noStartTimes inspects no container.
+func TestContainerListOfAProject(t *testing.T) {
+	s, fe := fixture(t)
+	d := fe.Deploy(true)
+	before := len(fe.Calls())
+	list := must[protocol.ContainerListOutput](t, s, protocol.ReqContainerList, protocol.ContainerListInput{Project: "shop", NoStartTimes: true})
+	var names []string
+	for _, c := range list.Containers {
+		names = append(names, c.Name)
+		if c.Stack == nil || c.Stack.Project != "shop" || !c.Stack.Managed || c.StartedAt != nil || c.Protection != nil {
+			t.Errorf("container %+v", c)
+		}
+	}
+	if slices.Sort(names); !slices.Equal(names, []string{"shop-db-1", "shop-web-1"}) {
+		t.Fatalf("containers %v", names)
+	}
+	if calls := fe.Calls()[before:]; slices.Contains(calls, "container.inspect") {
+		t.Errorf("noStartTimes inspected containers: %v", calls)
+	}
+	// Without noStartTimes the running containers carry their start time.
+	list = must[protocol.ContainerListOutput](t, s, protocol.ReqContainerList, protocol.ContainerListInput{Project: "shop"})
+	for _, c := range list.Containers {
+		if c.StartedAt == nil {
+			t.Errorf("running container without start time: %+v", c)
+		}
+	}
+	// Docker Manager's own project keeps its protection in its own list.
+	list = must[protocol.ContainerListOutput](t, s, protocol.ReqContainerList, protocol.ContainerListInput{Project: "docker-manager", NoStartTimes: true})
+	found := false
+	for _, c := range list.Containers {
+		if c.Stack == nil || c.Stack.Project != "docker-manager" {
+			t.Errorf("container of another project: %+v", c)
+		}
+		if c.ID == d.ProxyID {
+			found = true
+			if c.Protection == nil || c.Protection.Role != protection.RoleProject {
+				t.Errorf("proxy protection %+v", c.Protection)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("the proxy is missing from %+v", list.Containers)
+	}
+}
+
+// slowInspect is an Engine whose inspection of one container blocks until
+// the caller gives up, like the Engine's while it removes that container
+// on a loaded host; the other inspections are reported on inspected.
+type slowInspect struct {
+	*enginefake.Engine
+	id        string
+	blocked   chan struct{}
+	inspected chan string
+}
+
+func (e *slowInspect) InspectContainer(ctx context.Context, id string) (engine.ContainerDetails, error) {
+	if id != e.id {
+		d, err := e.Engine.InspectContainer(ctx, id)
+		e.inspected <- id
+		return d, err
+	}
+	close(e.blocked)
+	<-ctx.Done()
+	return engine.ContainerDetails{}, ctx.Err()
+}
+
+// TestContainerListDoesNotWaitForASlowInspection (#307): a container the
+// Engine does not inspect within the list's budget is listed without a
+// start time; the list still answers, with the other start times.
+func TestContainerListDoesNotWaitForASlowInspection(t *testing.T) {
+	ctx := testutil.Context(t)
+	_, fe := fixture(t)
+	slow := fe.AddContainer(engine.ContainerSpec{Name: "ci-job", Image: "nginx:1.27"}, true)
+	eng := &slowInspect{Engine: fe, id: slow, blocked: make(chan struct{}), inspected: make(chan string, 16)}
+	fc := testutil.FakeClock()
+	s := New(Options{Engine: func() engine.Engine { return eng }, Clock: fc, Logger: testutil.Logger(t),
+		ManagedStackDir: func(dir string) bool { return strings.HasPrefix(dir, stacksRoot+"/") }})
+	type result struct {
+		out protocol.ContainerListOutput
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		out, err := call[protocol.ContainerListOutput](t, s, protocol.ReqContainerList, protocol.ContainerListInput{})
+		done <- result{out, err}
+	}()
+	// The other running containers (shop-web-1, shop-db-1, web) are
+	// inspected while ci-job's inspection blocks.
+	<-eng.blocked
+	for range 3 {
+		select {
+		case <-eng.inspected:
+		case <-ctx.Done():
+			t.Fatal("the other containers were not inspected")
+		}
+	}
+	if err := fc.BlockUntilWaiters(ctx, 1); err != nil {
+		t.Fatal(err)
+	}
+	fc.Advance(startTimesBudget)
+	var r result
+	select {
+	case r = <-done:
+	case <-ctx.Done():
+		t.Fatal("the list waited for the blocked inspection")
+	}
+	if r.err != nil {
+		t.Fatal(r.err)
+	}
+	byName := map[string]protocol.ContainerSummary{}
+	for _, c := range r.out.Containers {
+		byName[c.Name] = c
+	}
+	if c, ok := byName["ci-job"]; !ok || c.StartedAt != nil || c.State != "running" {
+		t.Errorf("slow container %+v", c)
+	}
+	for _, n := range []string{"shop-web-1", "shop-db-1", "web"} {
+		if byName[n].StartedAt == nil {
+			t.Errorf("%s has no start time", n)
+		}
+	}
+}

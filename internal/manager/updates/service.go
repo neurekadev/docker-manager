@@ -89,6 +89,7 @@ type Environments interface {
 // *resources.Service).
 type Resources interface {
 	ListContainers(ctx context.Context, env string) ([]protocol.ContainerSummary, error)
+	ListProjectContainers(ctx context.Context, env, project string) ([]protocol.ContainerSummary, error)
 	InspectContainer(ctx context.Context, env, ref string) (protocol.ContainerDetails, error)
 	InspectImage(ctx context.Context, env, ref string) (protocol.ImageDetails, error)
 	ManagedSpec(ctx context.Context, env string, labels map[string]string) (*domain.ManagedContainer, *protocol.ContainerSpec, error)

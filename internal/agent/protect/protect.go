@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"regexp"
 	"slices"
 	"sync"
@@ -283,9 +282,10 @@ func name(c engine.Container) string {
 }
 
 // Identify computes the protected set from the container list cs (all
-// containers) and the Engine (inspections of Docker Manager's containers for
-// their networks).
-func (g *Guard) Identify(ctx context.Context, eng engine.Engine, cs []engine.Container) *Set {
+// containers, with their networks) and the Engine's identity. It inspects
+// no container: the Engine can block an inspection for minutes while it
+// removes a container on a loaded host, and every listing identifies.
+func (g *Guard) Identify(_ context.Context, eng engine.Engine, cs []engine.Container) *Set {
 	s := &Set{containers: map[string]*protocol.Protection{}, images: map[string]*protocol.Protection{},
 		volumes: map[string]*protocol.Protection{}, networks: map[string]*protocol.Protection{}, projects: map[string]*protocol.Protection{},
 		DockerRootDir: eng.Identity().DockerRootDir}
@@ -345,12 +345,7 @@ func (g *Guard) Identify(ctx context.Context, eng engine.Engine, cs []engine.Con
 				s.volumes[m.Name] = prot(protection.RoleVolume, fmt.Sprintf("mounted into Docker Manager container %s (for example a local backup repository)", name(c)), false)
 			}
 		}
-		d, err := eng.InspectContainer(ctx, c.ID)
-		if err != nil {
-			g.log.Debug("could not inspect a Docker Manager container", "container_id", c.ID, "error", err)
-			continue
-		}
-		for _, n := range slices.Sorted(maps.Keys(d.Networks)) {
+		for _, n := range c.Networks {
 			if slices.Contains(protocol.BuiltinNetworks, n) {
 				continue
 			}
@@ -358,7 +353,7 @@ func (g *Guard) Identify(ctx context.Context, eng engine.Engine, cs []engine.Con
 			if s.networks[n] == nil {
 				s.networks[n] = p
 			}
-			if id := d.Networks[n].NetworkID; id != "" && s.networks[id] == nil {
+			if id := c.Endpoints[n].NetworkID; id != "" && s.networks[id] == nil {
 				s.networks[id] = p
 			}
 		}

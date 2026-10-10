@@ -535,6 +535,12 @@ those agents execute `container.recreate` (the `container.*` action input:
 with a clone of its configuration on the image its reference names now;
 result output `wasRunning` and `containerId`, the new container); the
 manager refuses a recreate for other agents (501 `agent_unsupported`).
+And `container.list.project` (`protocol.FeatureContainerListProject`,
+#307): only those agents get `container.list` inputs with `project`
+(list only the containers whose Compose project label is that project)
+and `noStartTimes` (leave `startedAt` out and inspect no container); the
+manager lists one project's containers that way and lists every
+container and filters for other agents, which refuse unknown fields.
 And
 `exec.shell` (`protocol.FeatureExecShell`, #8): only those agents get
 `container.exec.create` inputs with `shell`; for other agents the manager
@@ -1098,7 +1104,7 @@ it; see "request / response").
 | `host.metrics` | request | `environment.metrics.read` | no | #5 |
 | `metrics.live` | request | manager service: about once a second while a browser live stream is open, only to agents that advertise it; the answers are served with `environment.metrics.read` / `container.metrics.read` | no | #5 |
 | `host.health` | request | manager service: about once a minute, only to agents that advertise it; checks (`refresh`) with `environment.system.read`; the answers are served with `environment.system.read` | no | #143 |
-| `container.list` | request | any container capability (fields shaped per #17; entries carry their network addresses and, while running, `startedAt`) | no | #6 |
+| `container.list` | request | any container capability (fields shaped per #17; entries carry their network addresses and, while running, `startedAt`; optional `project` and `noStartTimes` for `container.list.project` agents, used by stack protection and update checks) | no | #6 |
 | `container.inspect` | request | `container.details.read` (the on-failure restart policy carries `restartMaxRetries` when limited) | no | #6 |
 | `container.stats` | request | `container.metrics.read` | no | #5 |
 | `container.logs` | request | `container.logs.read` (bounded tail) | no | #8 |

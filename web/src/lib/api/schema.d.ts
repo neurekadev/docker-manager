@@ -12083,7 +12083,7 @@ export interface components {
             origin?: "created" | "imported";
             /** @description Engine state before the last deploy (recovery of a failed deploy). */
             previousState?: components["schemas"]["StackServiceState"][];
-            /** @description Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected. */
+            /** @description Docker Manager's own Compose project (#32; get-stack only, while the environment is online and its agent answers within 3 s): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected. */
             protection?: components["schemas"]["ResourceProtection"];
             /** @description The environment is offline: the last known revision and state are shown read-only. */
             readOnly?: boolean;

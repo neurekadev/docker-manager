@@ -98,6 +98,11 @@ const (
 	// execute container.recreate (replace a standalone container with a
 	// clone of its configuration).
 	FeatureContainerRecreate = "container.recreate"
+
+	// FeatureContainerListProject is the capabilities feature of agents
+	// whose container.list accepts ContainerListInput.Project and
+	// NoStartTimes.
+	FeatureContainerListProject = "container.list.project"
 )
 
 var (
@@ -368,7 +373,9 @@ type ContainerSummary struct {
 	// Agents before this field omit it in lists.
 	NetworkList []ContainerNetwork `json:"networkList,omitempty"`
 	// StartedAt is the last start of the container (lists: running
-	// containers only; absent from older agents' lists).
+	// containers only; absent from older agents' lists, from lists with
+	// NoStartTimes, and for a container the Engine did not inspect within
+	// the list's budget).
 	StartedAt  *time.Time  `json:"startedAt,omitempty"`
 	Stack      *StackRef   `json:"stack,omitempty"`
 	Protection *Protection `json:"protection,omitempty"`
@@ -511,8 +518,15 @@ type (
 	ManagerIdentityOutput struct {
 		Colocated bool `json:"colocated"`
 	}
-	// ContainerListInput lists every container (running or not).
-	ContainerListInput struct{}
+	// ContainerListInput lists every container (running or not). Project
+	// limits the list to the containers of one Compose project (its
+	// project label); NoStartTimes leaves startedAt out, so the agent
+	// inspects no container. Agents without FeatureContainerListProject
+	// refuse both (unknown fields).
+	ContainerListInput struct {
+		Project      string `json:"project,omitempty"`
+		NoStartTimes bool   `json:"noStartTimes,omitempty"`
+	}
 	// ContainerListOutput answers container.list.
 	ContainerListOutput struct {
 		Containers []ContainerSummary `json:"containers"`

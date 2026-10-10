@@ -16,6 +16,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/authz/authztest"
 	"github.com/neurekadev/docker-manager/internal/manager/authz/catalog"
 	"github.com/neurekadev/docker-manager/internal/manager/authz/policy"
+	"github.com/neurekadev/docker-manager/internal/protocol"
 	"github.com/neurekadev/docker-manager/internal/testutil"
 )
 
@@ -35,6 +36,11 @@ type fakeStacks struct {
 	renames    []string
 	renamePlan domain.StackRenamePlan
 	validated  []string
+	// protection and protectionErr answer Protection; protectionWait is
+	// the time it was given.
+	protection     *protocol.Protection
+	protectionErr  error
+	protectionWait time.Duration
 }
 
 const secretBind = "/srv/secret-bind-path"
@@ -285,9 +291,21 @@ func (f *fakeStacks) HostPath(_ context.Context, id string) (string, error) {
 	return fakeStacksRoot + "/" + st.Dir, nil
 }
 
+func (f *fakeStacks) Protection(ctx context.Context, _ domain.Stack) (*protocol.Protection, error) {
+	dl, ok := ctx.Deadline()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.protectionWait = 0
+	if ok {
+		f.protectionWait = time.Until(dl)
+	}
+	return f.protection, f.protectionErr
+}
+
 var (
-	_ StackService   = (*fakeStacks)(nil)
-	_ stackHostPaths = (*fakeStacks)(nil)
+	_ StackService    = (*fakeStacks)(nil)
+	_ stackHostPaths  = (*fakeStacks)(nil)
+	_ stackProtection = (*fakeStacks)(nil)
 )
 
 func stacksAPIFor(t *testing.T, pol *authztest.Policy) (http.Handler, *fakeStacks) {
@@ -347,6 +365,34 @@ func stackRoutesFor(t *testing.T, stackID string) []authztest.Call {
 		t.Fatalf("%d stack routes, want 22", len(calls))
 	}
 	return calls
+}
+
+// TestStackProtectionIsBounded (#307): get-stack reports Docker Manager's own
+// project, and asks the agent for it within StackProtectionTimeout: a slow
+// agent leaves the protection out instead of delaying the page.
+func TestStackProtectionIsBounded(t *testing.T) {
+	h, svc := stacksAPIFor(t, authztest.Only("sam", "allow stack.read @stack:st-1"))
+	get := func() Stack {
+		t.Helper()
+		r := authztest.Do(t, h, "sam", authztest.Call{Method: http.MethodGet, Path: "/api/v1/stacks/st-1"})
+		var st Stack
+		if r.Status != http.StatusOK || json.Unmarshal(r.Body, &st) != nil {
+			t.Fatalf("get: %d %s", r.Status, r.Body)
+		}
+		return st
+	}
+	svc.protection = &protocol.Protection{Role: "project", Reason: "Docker Manager's own Compose project shop"}
+	if st := get(); st.Protection == nil || st.Protection.Role != "project" {
+		t.Fatalf("protection %+v", st.Protection)
+	}
+	if svc.protectionWait <= 0 || svc.protectionWait > StackProtectionTimeout {
+		t.Fatalf("protection asked within %v, want at most %v", svc.protectionWait, StackProtectionTimeout)
+	}
+	// The agent did not answer within the bound: the page loads without it.
+	svc.protection, svc.protectionErr = nil, context.DeadlineExceeded
+	if st := get(); st.Protection != nil || st.ID != "st-1" {
+		t.Fatalf("slow agent: %+v", st)
+	}
 }
 
 func TestStackReadDoesNotOpenTheDefinition(t *testing.T) {

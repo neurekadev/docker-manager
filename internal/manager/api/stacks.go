@@ -209,7 +209,7 @@ type Stack struct {
 	Recovery          string              `json:"recovery,omitempty" doc:"How to recover from a failed deploy."`
 	Binds             []StackBind         `json:"binds,omitempty" doc:"Resolved bind sources (with stack.definition.read)."`
 	LastJob           *StackJobRef        `json:"lastJob,omitempty"`
-	Protection        *ResourceProtection `json:"protection,omitempty" doc:"Docker Manager's own Compose project (#32; get-stack only, while the environment is online): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected."`
+	Protection        *ResourceProtection `json:"protection,omitempty" doc:"Docker Manager's own Compose project (#32; get-stack only, while the environment is online and its agent answers within 3 s): it can be imported, redeployed and updated, but stop, restart, down, delete and migrate are refused with 409 protected."`
 	EnvironmentOnline bool                `json:"environmentOnline,omitempty" doc:"The environment's agent is connected."`
 	ReadOnly          bool                `json:"readOnly,omitempty" doc:"The environment is offline: the last known revision and state are shown read-only."`
 	CreatedAt         time.Time           `json:"createdAt,omitzero"`
@@ -409,6 +409,11 @@ func newRevision(r domain.StackRevision, st domain.Stack, withContent bool) Stac
 	}
 	return out
 }
+
+// StackProtectionTimeout bounds the agent request of a stack's protection
+// on GET /stacks/{stackId}: it is best effort, so a slow agent leaves it
+// out instead of delaying the page (#307).
+const StackProtectionTimeout = 3 * time.Second
 
 // stackProtection reports Docker Manager's own Compose project (#32).
 type stackProtection interface {
@@ -643,8 +648,12 @@ func (h *stacksAPI) get(ctx context.Context, in *stackIDInput) (*stackOutput, er
 	}
 	out := h.stackOut(ctx, st, v)
 	if sp, ok := h.svc.(stackProtection); ok && out.Body.EnvironmentOnline {
-		// Best effort: the UI disables the refused actions with the reason.
-		if p, err := sp.Protection(ctx, st); err == nil {
+		// Best effort: the UI disables the refused actions with the reason;
+		// the agent refuses them again anyway.
+		pctx, cancel := context.WithTimeout(ctx, StackProtectionTimeout)
+		p, err := sp.Protection(pctx, st)
+		cancel()
+		if err == nil {
 			out.Body.Protection = newProtection(p)
 		}
 	}

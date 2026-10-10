@@ -40,9 +40,10 @@ func (s *Service) ContainerProtection(c protocol.ContainerSummary) *protocol.Pro
 // ProjectProtection returns the protection of a Compose project of the
 // environment: Docker Manager's own project (a Docker Manager container belongs to it)
 // is protected; #7 refuses deploy, down and stop on it with
-// protection.Check(p, protection.Deploy|Down|Stop, false).
+// protection.Check(p, protection.Deploy|Down|Stop, false). It lists only
+// the project's containers (ListProjectContainers).
 func (s *Service) ProjectProtection(ctx context.Context, env, project string) (*protocol.Protection, error) {
-	cs, err := s.ListContainers(ctx, env)
+	cs, err := s.ListProjectContainers(ctx, env, project)
 	if err != nil {
 		return nil, err
 	}

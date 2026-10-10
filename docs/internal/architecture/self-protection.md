@@ -30,6 +30,13 @@ override in v1; Docker on the host is the escape hatch).
 | Other volumes of Docker Manager containers | e.g. the proxy's data; volumes labeled with Docker Manager's project | `docker_manager_volume` |
 | Networks | the networks of the containers above (not `bridge`/`host`/`none`) and those labeled with Docker Manager's project | `docker_manager_network` |
 
+`Identify` works from the container list alone (each entry carries its
+networks with their IDs) and inspects no container: the Engine can block
+an inspection for minutes while it removes a container on a loaded host,
+and every listing identifies (#307). A list of one Compose project's
+containers (`container.list` with `project`) identifies that project's
+containers exactly as the full list does.
+
 Detection works on a host with manager and agent (the Quickstart's
 compose file) and on a host with only an agent ("Add more servers"): tests
 `TestHostWithManagerAndAgent`, `TestHostWithOnlyAnAgent`,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -375,6 +376,57 @@ type featureAgents struct {
 
 func (f featureAgents) EnvironmentHasFeature(_, feature string) bool {
 	return feature == protocol.FeatureLabels && f.labels
+}
+
+// projectListAgents is an agentRequester whose agent announces
+// protocol.FeatureContainerListProject; inputs are the container.list
+// inputs the manager sent.
+type projectListAgents struct {
+	*agentRequester
+	inputs []protocol.ContainerListInput
+}
+
+func (f *projectListAgents) EnvironmentHasFeature(_, feature string) bool {
+	return feature == protocol.FeatureContainerListProject
+}
+
+func (f *projectListAgents) RequestEnvironment(ctx context.Context, env, name string, input any, d time.Duration) (json.RawMessage, error) {
+	if in, ok := input.(protocol.ContainerListInput); ok {
+		f.inputs = append(f.inputs, in)
+	}
+	return f.agentRequester.RequestEnvironment(ctx, env, name, input, d)
+}
+
+// TestListProjectContainers (#307): an agent that filters by project is
+// asked for one project's containers without start times (it inspects
+// none); an older agent lists every container and the manager filters.
+// ProjectProtection lists the same way.
+func TestListProjectContainers(t *testing.T) {
+	svc, _, _, _, req := fixture(t)
+	ctx := testutil.Context(t)
+	names := func(cs []protocol.ContainerSummary) []string {
+		var out []string
+		for _, c := range cs {
+			out = append(out, c.Name)
+		}
+		return out
+	}
+	cs, err := svc.ListProjectContainers(ctx, "env-1", "shop")
+	if err != nil || !slices.Equal(names(cs), []string{"shop-web-1"}) || cs[0].StartedAt == nil {
+		t.Fatalf("older agent: %+v %v", cs, err)
+	}
+	pa := &projectListAgents{agentRequester: req}
+	svc.opts.Agents = pa
+	cs, err = svc.ListProjectContainers(ctx, "env-1", "shop")
+	if err != nil || !slices.Equal(names(cs), []string{"shop-web-1"}) || cs[0].StartedAt != nil || cs[0].Stack == nil {
+		t.Fatalf("project list: %+v %v", cs, err)
+	}
+	if want := (protocol.ContainerListInput{Project: "shop", NoStartTimes: true}); len(pa.inputs) != 1 || pa.inputs[0] != want {
+		t.Fatalf("inputs %+v", pa.inputs)
+	}
+	if pp, err := svc.ProjectProtection(ctx, "env-1", "shop"); err != nil || pp != nil || len(pa.inputs) != 2 || pa.inputs[1].Project != "shop" {
+		t.Fatalf("protection %+v %v, inputs %+v", pp, err, pa.inputs)
+	}
 }
 
 // TestCreatedContainerOwnershipKeys: containers Docker Manager creates get
