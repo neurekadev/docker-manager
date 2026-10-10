@@ -208,6 +208,10 @@ func (s *Service) OnStackMoved(h MovedHook) {
 
 func (s *Service) now() time.Time { return s.clk.Now().UTC().Truncate(time.Microsecond) }
 
+// Limiter is the bandwidth cap shared by every running migration (nil:
+// unlimited); stack archives (#313) share it.
+func (s *Service) Limiter() *transfer.Limiter { return s.limiter }
+
 // Get returns a migration.
 func (s *Service) Get(ctx context.Context, id string) (domain.Migration, error) {
 	return store.GetMigration(ctx, s.db, id)

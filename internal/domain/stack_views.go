@@ -34,6 +34,21 @@ type StackFromTemplate struct {
 	Version       int
 }
 
+// StackFromArchive creates a stack from a stack archive (an export of
+// another stack): the archive's project directory becomes the new
+// directory Name of the environment's stacks volume.
+type StackFromArchive struct {
+	EnvironmentID string
+	Name          string
+	DisplayName   string
+	Meta          DisplayMeta
+	Links         []Link
+	// ConfigFiles and EnvFiles are the project-relative files the exported
+	// stack loaded (none: Compose's defaults).
+	ConfigFiles []string
+	EnvFiles    []string
+}
+
 // StackImport adopts a discovered Compose project: in place (Files empty)
 // or from an explicit Compose source written into a new directory.
 type StackImport struct {

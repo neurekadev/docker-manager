@@ -723,6 +723,11 @@ func (a *Agent) CapabilitiesPayload() (protocol.CapabilitiesPayload, bool) {
 	if slices.Contains(p.Commands, "stack.rename") {
 		p.Features = append(p.Features, protocol.FeatureStackRename)
 	}
+	// Its migration.receive creates a volume as Compose would for a key of
+	// a project in its stacks volume (stacks created from archives).
+	if slices.Contains(p.Commands, "stack.remove_source") {
+		p.Features = append(p.Features, protocol.FeatureMigrationComposeVolume)
+	}
 	// It recreates standalone containers (#273).
 	if slices.Contains(p.Commands, "container.recreate") {
 		p.Features = append(p.Features, protocol.FeatureContainerRecreate)

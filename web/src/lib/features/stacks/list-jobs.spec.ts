@@ -76,6 +76,8 @@ describe('stack list jobs', () => {
 		expect(runningLabel({ kind: 'stack.stop', state: 'cancelling' })).toBe('Stopping');
 		// A stack's Stop takes it down.
 		expect(runningLabel({ kind: 'stack.down', state: 'running' })).toBe('Stopping');
+		expect(runningLabel({ kind: 'stack.export', state: 'running' })).toBe('Exporting');
+		expect(runningLabel({ kind: 'stack.import_archive', state: 'running' })).toBe('Creating');
 		expect(runningLabel({ kind: 'stack.deploy', state: 'queued' })).toBe('Waiting');
 		expect(runningLabel({ kind: 'stack.deploy', state: 'blocked' })).toBe('Waiting');
 		expect(runningLabel({ kind: 'files.copy', state: 'running' })).toBe('Running');

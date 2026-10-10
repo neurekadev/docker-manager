@@ -74,6 +74,9 @@ const (
 	EnvTemplateRegistrySyncInterval = "DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL"
 
 	EnvMigrationBandwidthLimit = "DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT"
+	// EnvStackArchiveMaxMB bounds a stack archive: an export's data and an
+	// uploaded archive (#313).
+	EnvStackArchiveMaxMB = "DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB"
 	// Backups (#10).
 	EnvResticBinary = "DOCKER_MANAGER_RESTIC_BINARY"
 	// Diagnostics (#34): the Prometheus endpoint of Docker Manager's own
@@ -145,6 +148,10 @@ const (
 	MinFilesMaxArchiveEntries = 100
 	// DefaultTemplateMaxSizeMB bounds a template's draft and versions.
 	DefaultTemplateMaxSizeMB = 32
+	// DefaultStackArchiveMaxMB bounds a stack archive (10 GiB); at most
+	// MaxStackArchiveMaxMB (1 TiB).
+	DefaultStackArchiveMaxMB = 10 << 10
+	MaxStackArchiveMaxMB     = 1 << 20
 )
 
 // MetricsConfig bounds the metrics database (#5).
@@ -237,6 +244,10 @@ type Config struct {
 	// MigrationBandwidthLimit caps the data environment migrations relay
 	// through the manager, in bytes per second (#35; 0: unlimited).
 	MigrationBandwidthLimit int64
+	// StackArchiveMax bounds a stack archive in bytes (#313): the data an
+	// export writes and the size of an uploaded archive. The reverse
+	// proxy's body limit must allow it for uploads.
+	StackArchiveMax int64
 	// ResticBinary is the pinned restic (#10).
 	ResticBinary string
 	// MetricsEnabled serves GET /api/v1/system/metrics (#34; default off).
@@ -326,6 +337,7 @@ func (c Config) Settings() []Setting {
 		{EnvTemplateRegistryEnabled, strconv.FormatBool(c.TemplateRegistryEnabled)},
 		{EnvTemplateRegistrySyncInterval, c.TemplateRegistrySync.String()},
 		{EnvMigrationBandwidthLimit, strconv.FormatInt(c.MigrationBandwidthLimit, 10) + " B/s (0: unlimited)"},
+		{EnvStackArchiveMaxMB, mb(c.StackArchiveMax)},
 		{EnvResticBinary, c.ResticBinary},
 		{EnvMetricsEnabled, strconv.FormatBool(c.MetricsEnabled)},
 		{EnvMoveFrom, moveFrom},
@@ -368,6 +380,9 @@ const DefaultResticBinary = "/usr/local/bin/restic"
 
 // ResticCacheDir is restic's cache inside the data directory.
 func (c Config) ResticCacheDir() string { return filepath.Join(c.DataDir, "restic-cache") }
+
+// StackArchiveDir holds stack archives: exports and uploads (#313).
+func (c Config) StackArchiveDir() string { return filepath.Join(c.DataDir, "stack-archives") }
 
 // ResticTempDir holds restic's temporary files inside the data directory.
 func (c Config) ResticTempDir() string { return filepath.Join(c.DataDir, "tmp") }
@@ -459,6 +474,11 @@ func Load(src envconfig.Source) (Config, error) {
 		errs = append(errs, err)
 	}
 	cfg.TemplateMaxSize = int64(templateMB) << 20
+	archiveMB, err := src.Int(EnvStackArchiveMaxMB, DefaultStackArchiveMaxMB, 1, MaxStackArchiveMaxMB)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.StackArchiveMax = int64(archiveMB) << 20
 	if cfg.TemplateRegistryEnabled, err = src.Bool(EnvTemplateRegistryEnabled, true); err != nil {
 		errs = append(errs, err)
 	}

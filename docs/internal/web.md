@@ -413,6 +413,34 @@ checks by default (`visibleJobs`), folds a job's audit records into one row
 (`auditRows` in `$lib/features/stacks/activity.ts`) and reads the audit
 log 50 records at a time ("Load More").
 
+Stack archives (#313) are two dialogs (pure logic in
+`$lib/features/stacks/archives.ts`, requests in `archive-api.ts`, the XHR
+upload in `archive-upload.ts`). **Export Archive** (More Stack Actions,
+shown with `stack.export`, `stack.files.download` and
+`stack.definition.read`; off for Docker Manager's own stack, offline
+environments and during a rename) opens `ExportArchiveDialog.svelte`
+from the stack layout (`routes.stackExport`, `?export=1`): the check runs
+at once and again 600 ms after a volume is ticked or cleared (volumes the
+caller may not download start left out), Export Archive starts the job,
+its progress restores from the caller's own running `stack.export`
+(`ownJob`: initiator = session user), and when it succeeds while the
+dialog is open the check runs again and its `latest` (this export) is
+downloaded through a link; closed, the job tray's success toast offers
+**Download Archive**. **Create Stack From Archive** (Create Stack menu and
+empty state, `routes.stackFromArchive`, `?fromArchive=1`) is
+`CreateFromArchiveDialog.svelte`: the file uploads at once (progress,
+Cancel Upload; `criticalWork` and a `beforeunload` warning while it runs;
+a window-level drop handler keeps a dropped file from opening in the
+browser), then the archive's summary, Environment, Name (the pinned name
+or the archive's), Display Name and Description (always sent), Deploy
+After Creating and the check (debounced, "Check Again" after an error).
+An upload no stack was created from is discarded when the dialog closes,
+on Choose Another and on `pagehide` (a keepalive DELETE, not when the page
+enters the back/forward cache); a failed import keeps it for Try Again
+while the dialog stays open. Only the caller's own running import is
+adopted after a reload; `deploy_failed` means the stack was kept (Open
+Stack).
+
 An environment's stacks move together through **Migrate Environment**
 (`routes.environmentMigrate`, `/environments/<id>/migrate`): the entry of
 the environment page's "More Actions" menu (shown with a second

@@ -168,6 +168,10 @@ func capabilities() []Capability {
 		adv(high("stack.remove", TypeStack, "Delete Stacks", "Remove a stack and its containers. Removing the volumes it owns too also needs Remove Volumes on the stack.", stackScope)),
 		adv(high("stack.rename", TypeStack, "Rename Stacks", "Change a stack's Compose project name: it stops and starts again, its volumes and project directory move to the new name, and containers outside the stack that use those volumes are stopped and recreated.", stackScope)),
 		adv(high("stack.migrate", TypeStack, "Migrate Stacks", "Move a stack and its volumes to another environment (also needs stack.create on the target environment). Stack rules follow the stack; environment rules do not.", stackScope)),
+		// High risk (#313): the archive holds the stack's files (with its
+		// .env values) and the data of its volumes, and the stack stops
+		// while it is written.
+		adv(high("stack.export", TypeStack, "Export Stack Archives", "Stop a stack, save its project directory and volumes as an archive and download it (also needs Download Stack Files, View Compose Definition and Download Volume Files for the included volumes). The archive may contain secrets.", stackScope)),
 	)
 	add(fileCaps(TypeStack, "Stack Files", "the stack's project directory (its Compose files, override files and env files additionally need the Compose definition capabilities)", stackScope)...)
 

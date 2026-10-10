@@ -178,14 +178,20 @@ const env = {
 	serviceAddress: '192.168.1.10'
 } as Environment;
 
-function header(s: Stack, tray = new JobTray()) {
+function header(s: Stack, tray = new JobTray(), extra: Record<string, unknown> = {}) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	render(QueryHarness, {
 		props: {
 			client,
 			// The harness takes any component; StackHeader's Props is an interface.
 			component: StackHeader as unknown as Component<Record<string, unknown>>,
-			props: { stack: s, environment: env, tray, now: new Date('2026-09-25T10:00:00Z') }
+			props: {
+				stack: s,
+				environment: env,
+				tray,
+				now: new Date('2026-09-25T10:00:00Z'),
+				...extra
+			}
 		}
 	});
 	return tray;
@@ -260,6 +266,57 @@ describe('StackHeader', () => {
 		expect(screen.getByRole('button', { name: 'Rename Silo' })).toBeEnabled();
 	});
 
+	const EXPORT = ['stack.export', 'stack.files.download', 'stack.definition.read'];
+
+	it('offers Export Archive after Migrate with export, file download and definition read', async () => {
+		const user = setup();
+		const onexport = vi.fn();
+		header(stack({ actions: [...ALL, ...EXPORT] }), new JobTray(), { onexport });
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More Stack Actions' });
+		expect(
+			within(menu)
+				.getAllByRole('menuitem')
+				.map((i) => i.textContent?.trim())
+		).toEqual(['Migrate', 'Export Archive', 'Edit Details', 'Save as Template', 'Delete']);
+		await user.click(within(menu).getByRole('menuitem', { name: 'Export Archive' }));
+		expect(onexport).toHaveBeenCalledOnce();
+	});
+
+	it('hides Export Archive without one of its capabilities', async () => {
+		const user = setup();
+		header(
+			stack({ actions: [...ALL, 'stack.export', 'stack.files.download'] }),
+			new JobTray(),
+			{ onexport: vi.fn() }
+		);
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		const menu = await screen.findByRole('menu', { name: 'More Stack Actions' });
+		expect(within(menu).queryByRole('menuitem', { name: 'Export Archive' })).toBeNull();
+	});
+
+	it("keeps Export Archive of Docker Manager's own stack visible but off", async () => {
+		const user = setup();
+		header(
+			stack({
+				actions: [...ALL, ...EXPORT],
+				protection: {
+					role: 'docker_manager_project',
+					reason: "Docker Manager's own Compose project",
+					self: true,
+					restartAllowed: false
+				}
+			}),
+			new JobTray(),
+			{ onexport: vi.fn() }
+		);
+		await user.click(screen.getByRole('button', { name: 'More Stack Actions' }));
+		expect(await screen.findByRole('menuitem', { name: 'Export Archive' })).toHaveAttribute(
+			'aria-disabled',
+			'true'
+		);
+	});
+
 	it('stops a partially running stack by default and starts the rest from its menu', async () => {
 		const user = setup();
 		const tray = header(
@@ -299,7 +356,7 @@ describe('StackHeader', () => {
 			})
 		);
 		const reason =
-			'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
+			'Docker Manager cannot stop, restart, migrate, export, rename or delete its own stack. Deploy works.';
 		const stop = screen.getByRole('button', { name: 'Stop' });
 		expect(stop).toBeDisabled();
 		expect(stop).toHaveAttribute('title', reason);

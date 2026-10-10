@@ -6,7 +6,8 @@
 	// with the "Undeployed Changes" chip, the stack's jobs (started here or
 	// running when the page opens: the running list brings them back after
 	// a reload), then the tab. Files, Logs and Terminal are track B3's
-	// routes.
+	// routes. `?export=1` (routes.stackExport) opens the Export Archive
+	// dialog over any tab.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -16,6 +17,9 @@
 	import { activeJobsQuery, environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
 	import { matchingJobs } from '$lib/features/jobs/active';
 	import { stackJobCopy, stackTrayMatch } from '$lib/features/stacks/adopt';
+	import { exportTrayEntry } from '$lib/features/stacks/archive-api';
+	import ExportArchiveDialog from '$lib/features/stacks/ExportArchiveDialog.svelte';
+	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import { FILE_JOB_KINDS } from '$lib/features/resources/object-jobs';
 	import KpiRow from '$lib/features/common/KpiRow.svelte';
 	import Page from '$lib/features/common/Page.svelte';
@@ -76,8 +80,16 @@
 		if (!s) return;
 		const list = running;
 		const t = stackTitle(s);
-		untrack(() => tray.adopt(list, (j) => ({ kind: j.kind, ...stackJobCopy(j.kind, t) })));
+		// A finished export's toast offers its download.
+		untrack(() =>
+			tray.adopt(list, (j) =>
+				j.kind === 'stack.export'
+					? exportTrayEntry(s.id, t)
+					: { kind: j.kind, ...stackJobCopy(j.kind, t) }
+			)
+		);
 	});
+	const exportDialog = urlDialog('export');
 
 	provideStackPage({
 		get id() {
@@ -110,6 +122,10 @@
 			(stack.error.status === 404 || stack.error.status === 403)
 	);
 	const can = (a: string) => !!s?.actions.includes(a);
+	// Export Archive also reads the stack's files and definition.
+	const canExport = $derived(
+		can('stack.export') && can('stack.files.download') && can('stack.definition.read')
+	);
 	const tabs = $derived.by((): TabLink[] => {
 		if (!s) return [];
 		const t: TabLink[] = [{ href: routes.stack(id), label: 'Overview' }];
@@ -181,7 +197,17 @@
 	/>
 {:else if s}
 	<Page>
-		<StackHeader stack={s} {environment} {tray} {removeOrphans} showActions={!wizard} />
+		<StackHeader
+			stack={s}
+			{environment}
+			{tray}
+			{removeOrphans}
+			showActions={!wizard}
+			onexport={() => (exportDialog.open = true)}
+		/>
+		{#if canExport}
+			{#key id}<ExportArchiveDialog bind:open={exportDialog.open} stack={s} {tray} />{/key}
+		{/if}
 
 		{#if offline}
 			<OfflineEnvironment

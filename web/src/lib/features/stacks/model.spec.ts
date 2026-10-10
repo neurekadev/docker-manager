@@ -440,6 +440,9 @@ describe('migration, updates and jobs', () => {
 		expect(downtimeText(3 * 3600)).toBe('About 3 h');
 		expect(findingTitle('port_conflict')).toBe('Port Already in Use');
 		expect(findingTitle('network_not_creatable')).toBe('Network Must Be Created by Hand');
+		expect(findingTitle('archive_too_large')).toBe('Archive Too Large');
+		expect(findingTitle('not_exportable')).toBe('Stack Cannot Be Archived');
+		expect(findingTitle('project_name_pinned')).toBe('Project Name Pinned');
 		expect(findingTitle('some_new_code')).toBe('Some new code');
 	});
 
@@ -459,6 +462,11 @@ describe('migration, updates and jobs', () => {
 		expect(auditActionLabel('stack.definition.read')).toBe('Opened the Definition');
 		expect(auditActionLabel('stack.validate')).toBe('Validated the Definition');
 		expect(auditActionLabel('stack.restart')).toBe('Restart Stack');
+		expect(auditActionLabel('stack.export.preview')).toBe('Checked an Export');
+		expect(auditActionLabel('stack.import_archive.preview')).toBe(
+			'Checked Creating From an Archive'
+		);
+		expect(auditActionLabel('stack.export')).toBe('Export Archive');
 		expect(auditActionLabel('stack.files.write')).toBe('Stack files write');
 	});
 });

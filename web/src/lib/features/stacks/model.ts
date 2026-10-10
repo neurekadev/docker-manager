@@ -489,10 +489,14 @@ export function canAnywhere(perms: MyPermissions | undefined, capability: string
 
 export type MigrationFinding = Schema<'MigrationFinding'>;
 
-/** Plain-language names of the preflight's finding codes (#35; stack, volume and environment migrations). */
+/**
+ * Plain-language names of the preflight's finding codes (#35; stack, volume
+ * and environment migrations; stack archives, #313).
+ */
 const FINDING_TITLES: Record<string, string> = {
 	agent_unsupported: 'Agent Too Old',
 	anonymous_volume_skipped: 'Anonymous Volume Skipped',
+	archive_too_large: 'Archive Too Large',
 	container_name_conflict: 'Container Name Taken',
 	containers_running: 'Containers Still Running',
 	dependency_cycle: 'Stacks Depend on Each Other',
@@ -504,21 +508,25 @@ const FINDING_TITLES: Record<string, string> = {
 	external_network_missing: 'External Network Missing',
 	external_volume_missing: 'External Volume Missing',
 	host_ports_unverified: 'Host Ports Not Verified',
+	image_missing: 'Image Missing',
 	image_not_pullable: 'Image Cannot Be Pulled',
 	image_rebuild: 'Image Rebuilt on the Destination',
 	image_transfer: 'Image Copied Through the Manager',
 	image_unverified: 'Image Not Verified',
 	insufficient_space: 'Not Enough Free Space',
 	leftovers_removed: 'Earlier Partial Copy Removed',
+	manager_space: 'Not Enough Space on Docker Manager',
 	network_create_denied: 'Network Cannot Be Created',
 	network_created: 'Network Created First',
 	network_name_conflict: 'Network Name Taken',
 	network_not_creatable: 'Network Must Be Created by Hand',
 	no_stacks: 'No Stacks to Migrate',
+	not_exportable: 'Stack Cannot Be Archived',
 	plain_http_transport: 'Unencrypted Transfer',
 	platform_mismatch: 'Platform Mismatch',
 	port_conflict: 'Port Already in Use',
 	project_name_conflict: 'Compose Project Exists',
+	project_name_pinned: 'Project Name Pinned',
 	project_warning: 'Definition Warning',
 	registry_selection: 'Registry Connection',
 	same_environment: 'Same Environment',
@@ -527,7 +535,9 @@ const FINDING_TITLES: Record<string, string> = {
 	storage_unavailable: 'Storage Unavailable',
 	volume_definition_only: 'Volume Data Not Migrated',
 	volume_missing: 'Volume Missing',
-	volume_name_conflict: 'Volume Name Taken'
+	volume_name_conflict: 'Volume Name Taken',
+	volume_not_included: 'Volume Data Not Included',
+	volume_not_permitted: 'Volume Files Not Downloadable'
 };
 
 export function findingTitle(code: string): string {
@@ -558,6 +568,8 @@ const AUDIT_ACTIONS: Record<string, string> = {
 	'stack.definition.write': 'Changed the Definition',
 	'stack.manage': 'Edited Details',
 	'stack.rename.preview': 'Previewed a Rename',
+	'stack.export.preview': 'Checked an Export',
+	'stack.import_archive.preview': 'Checked Creating From an Archive',
 	'stack.validate': 'Validated the Definition',
 	'stack.create': 'Created',
 	'stack.import': 'Imported',

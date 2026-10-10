@@ -17,7 +17,9 @@ images, volumes, networks and Compose project are protected for everyone
   `protection.Filter` and show the reason; stack down/stop/restart/remove
   (#7) refuse Docker Manager's own project (deploys hand the agent's own
   service to the self-update helper; an import by copy copies the project
-  while it runs and never stops it).
+  while it runs and never stops it). A stack export (#313) refuses it too
+  (it would stop the manager and hold its data): at the check, the start and
+  the job's `prepare`.
 - The web lists' bulk selections (`$lib/features/resources/bulk.ts`) leave
   protected objects out before any request and list them with the reason
   in the confirmation and the summary; each remaining object goes through

@@ -151,7 +151,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 	'notification_channel.update': 'Changed a notification channel',
 	'notification_channel.delete': 'Deleted a notification channel',
 	'notification_channel.reveal': 'Viewed the address of a notification channel',
-	'notification_channel.test': 'Sent a test message'
+	'notification_channel.test': 'Sent a test message',
+	'stack.export.preview': 'Checked a stack export',
+	'stack.import_archive.preview': 'Checked creating a stack from an archive'
 };
 
 interface LabelCatalog {

@@ -43,7 +43,9 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'stack.deploy': 'Deploy Stack',
 	// A stack's Stop is Compose down; a plain stop only acts on services.
 	'stack.down': 'Stop Stack',
+	'stack.export': 'Export Archive',
 	'stack.import': 'Import Project',
+	'stack.import_archive': 'Create Stack From Archive',
 	'stack.migrate': 'Migrate Stack',
 	'stack.pull': 'Pull Stack Images',
 	'stack.remove': 'Delete Stack',
@@ -249,7 +251,9 @@ export function jobErrorHeadline(error: { class: string } | undefined, state: st
  * container, the policy, the build), or null when there is none.
  */
 export function jobAgain(
-	job: Pick<Job, 'id' | 'kind' | 'targets' | 'environmentId' | 'policyId'>
+	job: Pick<Job, 'id' | 'kind' | 'targets' | 'environmentId' | 'policyId'> & {
+		error?: { class: string };
+	}
 ): { href: string; label: string } | null {
 	const t = job.targets?.[0];
 	if (job.policyId && /^(update|prune|backup|manager)\./.test(job.kind))
@@ -262,6 +266,17 @@ export function jobAgain(
 			href: routes.build(job.environmentId, job.id),
 			label: 'Open the Build to Build Again'
 		};
+	// Only its deploy was refused: the stack was created and is kept.
+	if (job.kind === 'stack.import_archive' && job.error?.class === 'deploy_failed' && t)
+		return { href: routes.stack(t.id), label: 'Open the Stack' };
+	// A stack an archive did not fill is gone again: start over from the list.
+	if (job.kind === 'stack.import_archive')
+		return {
+			href: routes.stackFromArchive(job.environmentId),
+			label: 'Create the Stack From the Archive Again'
+		};
+	if (job.kind === 'stack.export' && t?.type === 'stack')
+		return { href: routes.stackExport(t.id), label: 'Export the Archive Again' };
 	if (t?.type === 'stack')
 		return { href: routes.stack(t.id), label: 'Open the Stack to Try Again' };
 	if (t?.type === 'container' && job.environmentId && !job.kind.endsWith('.remove'))
@@ -282,6 +297,7 @@ export function jobAgain(
 export function jobRetry(
 	job: Pick<Job, 'id' | 'kind' | 'state' | 'targets' | 'environmentId' | 'policyId'> & {
 		retryable?: boolean;
+		error?: { class: string };
 	}
 ): 'retry' | { href: string; label: string } | null {
 	if (job.retryable) return 'retry';

@@ -164,7 +164,7 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 		"container.create", "container.start", "container.stop", "container.restart", "container.pause",
 		"container.unpause", "container.remove", "container.update", "container.recreate",
 		"stack.deploy", "stack.start", "stack.stop", "stack.restart", "stack.down", "stack.remove", "stack.build",
-		"stack.migrate", "environment.migrate", "stack.remove_source", "stack.import", "stack.rename", "stack.pull", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
+		"stack.migrate", "environment.migrate", "stack.remove_source", "stack.import", "stack.rename", "stack.pull", "stack.export", "stack.import_archive", "volume.migrate", "volume.create", "volume.remove", "network.create", "network.remove",
 		"update.check", "update.run", "prune.run", "backup.run", "restore.run", "backup.retention", "backup.verify",
 		"backup.import", "files.archive", "files.extract", "files.metadata", "files.copy", "files.move", "files.delete",
 		"manager.backup", "manager.retention", "manager.verify", "manager.move",
@@ -184,7 +184,8 @@ func TestCatalogCoversV1Kinds(t *testing.T) {
 // TestBorrowedCapabilities: kinds that need another kind's capability (a
 // stack's Stop runs Compose down, #274; a deploy pulls too, #280).
 func TestBorrowedCapabilities(t *testing.T) {
-	for kind, want := range map[domain.JobKind]string{StackDown: "stack.stop", StackPull: "stack.deploy", StackStop: "stack.stop"} {
+	for kind, want := range map[domain.JobKind]string{StackDown: "stack.stop", StackPull: "stack.deploy", StackStop: "stack.stop",
+		StackImportArchive: "stack.create"} {
 		if s, ok := Lookup(kind); !ok || s.Capability != want {
 			t.Errorf("%s: capability %q, want %q", kind, s.Capability, want)
 		}

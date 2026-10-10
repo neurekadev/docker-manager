@@ -357,3 +357,24 @@ func TestMoveVariables(t *testing.T) {
 		}
 	}
 }
+
+// TestStackArchiveMax (#313): the archive limit is in MiB, 10 GiB by
+// default, between 1 MiB and 1 TiB; archives live in the data directory.
+func TestStackArchiveMax(t *testing.T) {
+	cfg, err := load(t, map[string]string{EnvPublicURL: "https://docker.example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.StackArchiveMax != 10<<30 || cfg.StackArchiveDir() != filepath.Join(cfg.DataDir, "stack-archives") {
+		t.Errorf("default %d, dir %q", cfg.StackArchiveMax, cfg.StackArchiveDir())
+	}
+	cfg, err = load(t, map[string]string{EnvPublicURL: "https://docker.example.com", EnvStackArchiveMaxMB: "512"})
+	if err != nil || cfg.StackArchiveMax != 512<<20 {
+		t.Errorf("512 MiB: %d, %v", cfg.StackArchiveMax, err)
+	}
+	for _, bad := range []string{"0", "-1", "1048577", "lots"} {
+		if _, err := load(t, map[string]string{EnvPublicURL: "https://docker.example.com", EnvStackArchiveMaxMB: bad}); err == nil {
+			t.Errorf("%s accepted", bad)
+		}
+	}
+}

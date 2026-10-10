@@ -4,7 +4,9 @@
 //   /                                   Dashboard
 //   /environments[/{id}[/migrate]]      environments, environment detail, environment migration
 //   /stacks[/{stackId}[/files|logs|terminal|revisions|policies|activity|migrate]]
-//   /stacks?create=1, /stacks?import=1, /stacks?fromTemplate=1[&template=] (create, import and template dialogs)
+//   /stacks?create=1, /stacks?import=1, /stacks?fromTemplate=1[&template=], /stacks?fromArchive=1
+//                                       (create, import, template and archive dialogs)
+//   /stacks/{stackId}?export=1          the stack's Export Archive dialog
 //   /containers, /images, /volumes, /networks   lists (all or the selected environment)
 //   /containers/new, /containers/{env}/{name}[/logs|terminal]   create; detail tabs
 //   /images/{env}/{imageId}, /networks/{env}/{name}
@@ -82,6 +84,11 @@ export const routes = {
 		if (environmentId) q.set('environment', environmentId);
 		return `/stacks?${q}`;
 	},
+	/** The stack list with the create-from-archive dialog open (#313). */
+	stackFromArchive: (environmentId?: string | null) =>
+		`/stacks?fromArchive=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,
+	/** The stack's page with the Export Archive dialog open (#313). */
+	stackExport: (id: string) => `/stacks/${e(id)}?export=1`,
 	/** The stack list with the import dialog open (discovered projects). */
 	importStack: (environmentId?: string | null) =>
 		`/stacks?import=1${environmentId ? `&environment=${e(environmentId)}` : ''}`,

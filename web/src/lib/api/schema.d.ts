@@ -3744,6 +3744,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stack-archives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a stack archive
+         * @description Uploads an archive written by a stack export (raw body, Content-Length required; 413 above DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB). It is stored on the manager and validated on the way (422 invalid_stack_archive), nothing reaches a host. Create a stack from it with POST /stack-archives/{archiveId}/imports within a day; only the uploader sees it. Needs stack.create in at least one environment; at most five uploads per user wait at once: the oldest one no stack is being created from makes room (409 too_many_stack_archives when none can); 507 manager_space when the manager's disk is too full. The reverse proxy's body limit must allow the archive's size.
+         */
+        post: operations["create-stack-archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stack-archives/{archiveId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an uploaded stack archive
+         * @description The caller's own upload: what the archive holds (stack, volumes, what was left out at export).
+         */
+        get: operations["get-stack-archive"];
+        put?: never;
+        post?: never;
+        /**
+         * Discard an uploaded stack archive
+         * @description Removes the caller's own upload from the manager (409 stack_archive_in_use while a stack is created from it).
+         */
+        delete: operations["delete-stack-archive"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stack-archives/{archiveId}/import-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check creating a stack from an archive
+         * @description Checks the environment before anything is written: the stack name and Compose project, the folder, containers, volumes and networks the stack would create (names that follow the project follow the new name), published ports, external networks and volumes, free space, a project name pinned by the Compose file, and images built on the source. Needs stack.create in the environment, volume.create when the archive has volumes and stack.deploy to deploy. Changes nothing.
+         */
+        post: operations["create-stack-archive-import-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stack-archives/{archiveId}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a stack from an archive
+         * @description Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and queues a stack.deploy job when asked (the stack is kept from then on: a deploy that cannot be queued fails the job but undoes nothing). A failure before that removes what the job wrote and forgets the stack. 501 agent_unsupported for older agents.
+         */
+        post: operations["create-stack-archive-import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stacks": {
         parameters: {
             query?: never;
@@ -3888,6 +3972,66 @@ export interface paths {
          * @description Server-sent events: first `event: stack` with the current Stack, then `stack.updated`, `stack.revision_recorded` and `stack.removed` events (id = bus sequence) as they happen, and `engine` events of the stack's containers the caller may see; refetch the stack (or its services/revisions) on each. No replay: after a reconnect the new snapshot is the state. Comments `: heartbeat` keep the connection alive. Job progress is on /jobs/{jobId}/events/stream.
          */
         get: operations["stream-stack-events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/export-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check a stack export
+         * @description Computes what exporting the stack as an archive does, before anything stops: the named volumes and whether their data is included (plain local volumes; external volumes, volumes with driver options or other drivers, anonymous volumes and bind mounts outside the project folder are not), the sizes against the archive limit (DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB) and the manager's free space, the services that stop and the downtime, and the newest archive of the stack still available. Needs stack.export, stack.files.download and stack.definition.read; a volume the caller may not download (volume.files.download) is marked and must be left out. Changes nothing.
+         */
+        post: operations["create-stack-export-preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export a stack as an archive
+         * @description Re-runs the check (409 stack_archive_blocked with the blockers in details) and starts a stack.export job (202; the export ID is the job ID). The stack's running services stop, the project folder and the included volumes are read from the host (checksummed per chunk and as a whole) into one tar.gz on the manager, and the services start again. The archive is kept for a day (GET .../exports/{exportId}).
+         */
+        post: operations["create-stack-export"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stacks/{stackId}/exports/{exportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a stack archive
+         * @description Streams a finished export's archive (application/gzip, Content-Length, ETag = its SHA-256, a single Range: 206 or 416). 404 once it expired (a day after the export). The archive holds the stack's files with their .env values and the volumes' data: keep it safe.
+         */
+        get: operations["download-stack-export"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12114,6 +12258,153 @@ export interface components {
             /** @enum {string} */
             view: "minimal" | "full";
         };
+        StackArchive: {
+            /** Format: date-time */
+            createdAt: string;
+            description?: string;
+            displayName?: string;
+            /**
+             * Format: date-time
+             * @description An unused upload is removed then.
+             */
+            expiresAt: string;
+            /** Format: date-time */
+            exportedAt: string;
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
+            id: string;
+            /** @description The exporting manager's version. */
+            managerVersion?: string;
+            /**
+             * @description The stack's (Compose project) name at export.
+             * @example web
+             */
+            name: string;
+            notIncluded: components["schemas"]["StackArchiveExclusion"][];
+            /** @description The project name a Compose file pins with a top-level name: (the stack must use it). */
+            pinnedName?: string;
+            /** Format: int64 */
+            projectBytes: number;
+            /** Format: int64 */
+            projectEntries: number;
+            services: string[];
+            sha256: string;
+            /**
+             * Format: int64
+             * @example 52428800
+             */
+            size: number;
+            volumes: components["schemas"]["StackArchiveVolumeInfo"][];
+        };
+        StackArchiveExclusion: {
+            key?: string;
+            /** @enum {string} */
+            kind: "volume" | "anonymous_volume" | "bind";
+            name: string;
+            reason: string;
+        };
+        StackArchiveImportBody: {
+            /** @description Deploy the stack once its files and volumes are in place (also needs stack.deploy). */
+            deploy?: boolean;
+            /**
+             * @description Omitted: the archive's; empty: none.
+             * @example Orders and payments
+             */
+            description?: string;
+            /**
+             * @description Omitted: the archive's; empty: none.
+             * @example Shop
+             */
+            displayName?: string;
+            /**
+             * @description The environment the stack is created in.
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70
+             */
+            environmentId: string;
+            /**
+             * @description The new stack's Compose project name (and folder). Volumes named after the project follow it.
+             * @example web
+             */
+            name: string;
+        };
+        StackArchiveImportPreview: {
+            /** @description No blockers: the stack can be created. */
+            allowed: boolean;
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
+            archiveId: string;
+            blockers: components["schemas"]["MigrationFinding"][];
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70 */
+            environmentId: string;
+            /** @example shop */
+            name: string;
+            /** Format: int64 */
+            projectBytes: number;
+            /**
+             * Format: int64
+             * @description Free bytes of the environment's stacks volume (-1: unknown).
+             */
+            stacksFreeBytes: number;
+            /** Format: int64 */
+            volumeBytes: number;
+            volumes: components["schemas"]["StackArchiveImportVolume"][];
+            /**
+             * Format: int64
+             * @description Free bytes of its Docker data root (-1: unknown).
+             */
+            volumesFreeBytes: number;
+            warnings: components["schemas"]["MigrationFinding"][];
+        };
+        StackArchiveImportVolume: {
+            /** Format: int64 */
+            bytes: number;
+            /** @example data */
+            key: string;
+            /**
+             * @description Its name for the new stack.
+             * @example shop_data
+             */
+            name: string;
+            /**
+             * @description Its name in the archive.
+             * @example web_data
+             */
+            source: string;
+        };
+        StackArchiveVolume: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            entries: number;
+            /** @description Left out by the request (excludeVolumes). */
+            excluded?: boolean;
+            /** @description Its data goes into the archive. */
+            included: boolean;
+            /**
+             * @description Compose volume key.
+             * @example data
+             */
+            key: string;
+            /** @example web_data */
+            name: string;
+            /** @description The caller may not download the volume's files (volume.files.download): it must be left out. */
+            notPermitted?: boolean;
+            /** @description Why it cannot be included. */
+            reason?: string;
+            /** @description The size is a lower bound (the scan hit its budget). */
+            truncated?: boolean;
+        };
+        StackArchiveVolumeInfo: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            entries: number;
+            /** @example data */
+            key: string;
+            /**
+             * @description Its name at export.
+             * @example web_data
+             */
+            name: string;
+        };
         StackBind: {
             /** @description Outside the project directory: backups need an explicit opt-in (#10). */
             external: boolean;
@@ -12196,6 +12487,76 @@ export interface components {
             stackId: string;
             /** @enum {string} */
             type: "stack.created" | "stack.updated" | "stack.removed" | "stack.revision_recorded" | "docker.event";
+        };
+        StackExportBody: {
+            /**
+             * @description Compose keys of named volumes whose data is left out. Default: every plain local named volume is included.
+             * @example [
+             *       "cache"
+             *     ]
+             */
+            excludeVolumes?: string[];
+            /**
+             * Format: int64
+             * @description Stop grace period of the stack's containers.
+             * @example 30
+             */
+            timeoutSeconds?: number;
+        };
+        StackExportFile: {
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description The archive is removed from the manager then.
+             */
+            expiresAt: string;
+            /** @description The stack.export job's ID; download it from GET /stacks/{stackId}/exports/{exportId}. */
+            exportId: string;
+            /** @example web-2026-10-10.tar.gz */
+            fileName: string;
+            sha256: string;
+            /** Format: int64 */
+            size: number;
+            /** @description Compose keys of the included volumes. */
+            volumes: string[];
+        };
+        StackExportPreview: {
+            /** @description No blockers: the export can start. */
+            allowed: boolean;
+            blockers: components["schemas"]["MigrationFinding"][];
+            /**
+             * Format: int64
+             * @description Estimated downtime (0: nothing runs).
+             */
+            downtimeSeconds: number;
+            /** @description The newest archive of the stack still available. */
+            latest?: components["schemas"]["StackExportFile"];
+            /**
+             * Format: int64
+             * @description Free space for archives on the manager (-1: unknown).
+             */
+            managerFreeBytes: number;
+            /**
+             * Format: int64
+             * @description DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB in bytes.
+             */
+            maxBytes: number;
+            /** @description Anonymous volumes and bind mounts outside the project folder. */
+            notIncluded: components["schemas"]["StackArchiveExclusion"][];
+            /** Format: int64 */
+            projectBytes: number;
+            /** @description Services that run: they stop while the archive is written and start again. */
+            running: string[];
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
+            stackId: string;
+            /** Format: int64 */
+            totalBytes: number;
+            truncated?: boolean;
+            /** Format: int64 */
+            volumeBytes: number;
+            volumes: components["schemas"]["StackArchiveVolume"][];
+            warnings: components["schemas"]["MigrationFinding"][];
         };
         StackImage: {
             build: boolean;
@@ -40957,6 +41318,661 @@ export interface operations {
             };
         };
     };
+    "create-stack-archive": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required: the archive's size. */
+                "Content-Length"?: number;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "displayName": "web",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "exportedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "managerVersion": "example",
+                     *       "name": "web",
+                     *       "notIncluded": [
+                     *         {
+                     *           "key": "example",
+                     *           "kind": "volume",
+                     *           "name": "web",
+                     *           "reason": "example"
+                     *         }
+                     *       ],
+                     *       "pinnedName": "web",
+                     *       "projectBytes": 1,
+                     *       "projectEntries": 1,
+                     *       "services": [
+                     *         "example"
+                     *       ],
+                     *       "sha256": "example",
+                     *       "size": 52428800,
+                     *       "volumes": [
+                     *         {
+                     *           "bytes": 1,
+                     *           "entries": 1,
+                     *           "key": "data",
+                     *           "name": "web_data"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["StackArchive"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Length Required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Insufficient Storage */
+            507: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get-stack-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Uploaded archive ID. */
+                archiveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "description": "example",
+                     *       "displayName": "web",
+                     *       "expiresAt": "2026-09-25T12:00:00Z",
+                     *       "exportedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "managerVersion": "example",
+                     *       "name": "web",
+                     *       "notIncluded": [
+                     *         {
+                     *           "key": "example",
+                     *           "kind": "volume",
+                     *           "name": "web",
+                     *           "reason": "example"
+                     *         }
+                     *       ],
+                     *       "pinnedName": "web",
+                     *       "projectBytes": 1,
+                     *       "projectEntries": 1,
+                     *       "services": [
+                     *         "example"
+                     *       ],
+                     *       "sha256": "example",
+                     *       "size": 52428800,
+                     *       "volumes": [
+                     *         {
+                     *           "bytes": 1,
+                     *           "entries": 1,
+                     *           "key": "data",
+                     *           "name": "web_data"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["StackArchive"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "delete-stack-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Uploaded archive ID. */
+                archiveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-archive-import-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Uploaded archive ID. */
+                archiveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "description": "Orders and payments",
+                 *       "displayName": "Shop",
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
+                 *       "name": "web"
+                 *     }
+                 */
+                "application/json": components["schemas"]["StackArchiveImportBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "allowed": false,
+                     *       "archiveId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "blockers": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
+                     *       "name": "shop",
+                     *       "projectBytes": 1,
+                     *       "stacksFreeBytes": 1,
+                     *       "volumeBytes": 1,
+                     *       "volumes": [
+                     *         {
+                     *           "bytes": 1,
+                     *           "key": "data",
+                     *           "name": "shop_data",
+                     *           "source": "web_data"
+                     *         }
+                     *       ],
+                     *       "volumesFreeBytes": 1,
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["StackArchiveImportPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-archive-import": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Uploaded archive ID. */
+                archiveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "description": "Orders and payments",
+                 *       "displayName": "Shop",
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
+                 *       "name": "web"
+                 *     }
+                 */
+                "application/json": components["schemas"]["StackArchiveImportBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     "list-stacks": {
         parameters: {
             query?: {
@@ -42822,6 +43838,456 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-export-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "excludeVolumes": [
+                 *         "cache"
+                 *       ],
+                 *       "timeoutSeconds": 30
+                 *     }
+                 */
+                "application/json": components["schemas"]["StackExportBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "allowed": false,
+                     *       "blockers": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ],
+                     *       "downtimeSeconds": 1,
+                     *       "latest": {
+                     *         "createdAt": "2026-09-25T12:00:00Z",
+                     *         "expiresAt": "2026-09-25T12:00:00Z",
+                     *         "exportId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "fileName": "web-2026-10-10.tar.gz",
+                     *         "sha256": "example",
+                     *         "size": 1,
+                     *         "volumes": [
+                     *           "example"
+                     *         ]
+                     *       },
+                     *       "managerFreeBytes": 1,
+                     *       "maxBytes": 1,
+                     *       "notIncluded": [
+                     *         {
+                     *           "key": "example",
+                     *           "kind": "volume",
+                     *           "name": "web",
+                     *           "reason": "example"
+                     *         }
+                     *       ],
+                     *       "projectBytes": 1,
+                     *       "running": [
+                     *         "example"
+                     *       ],
+                     *       "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "totalBytes": 1,
+                     *       "truncated": false,
+                     *       "volumeBytes": 1,
+                     *       "volumes": [
+                     *         {
+                     *           "bytes": 1,
+                     *           "entries": 1,
+                     *           "excluded": false,
+                     *           "included": false,
+                     *           "key": "data",
+                     *           "name": "web_data",
+                     *           "notPermitted": false,
+                     *           "reason": "example",
+                     *           "truncated": false
+                     *         }
+                     *       ],
+                     *       "warnings": [
+                     *         {
+                     *           "code": "example",
+                     *           "message": "example",
+                     *           "resource": "example",
+                     *           "service": "example"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["StackExportPreview"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "create-stack-export": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "excludeVolumes": [
+                 *         "cache"
+                 *       ],
+                 *       "timeoutSeconds": 30
+                 *     }
+                 */
+                "application/json": components["schemas"]["StackExportBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "attempt": 1,
+                     *       "blockedBy": {
+                     *         "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *         "reason": "lock"
+                     *       },
+                     *       "cancelRequested": false,
+                     *       "cancellable": false,
+                     *       "createdAt": "2026-09-25T12:00:00Z",
+                     *       "dispatchedAt": "2026-09-25T12:00:00Z",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "error": {
+                     *         "class": "agent_offline",
+                     *         "message": "example",
+                     *         "recovery": "example"
+                     *       },
+                     *       "executor": "agent",
+                     *       "finishedAt": "2026-09-25T12:00:00Z",
+                     *       "id": "0190a6e0-0000-7000-8000-000000000001",
+                     *       "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "items": [
+                     *         {
+                     *           "message": "example",
+                     *           "name": "web",
+                     *           "status": "succeeded"
+                     *         }
+                     *       ],
+                     *       "kind": "stack.deploy",
+                     *       "locks": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "mode": "shared",
+                     *           "name": "web",
+                     *           "scope": "host"
+                     *         }
+                     *       ],
+                     *       "locksHeld": false,
+                     *       "origin": "manual",
+                     *       "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *       "progress": {
+                     *         "message": "example",
+                     *         "percent": 1,
+                     *         "step": "example"
+                     *       },
+                     *       "retryOf": "example",
+                     *       "retryable": false,
+                     *       "startedAt": "2026-09-25T12:00:00Z",
+                     *       "state": "queued",
+                     *       "targets": [
+                     *         {
+                     *           "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                     *           "type": "stack"
+                     *         }
+                     *       ],
+                     *       "updatedAt": "2026-09-25T12:00:00Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "download-stack-export": {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string;
+            };
+            path: {
+                /** @description Stack ID. */
+                stackId: string;
+                /** @description Export ID (the stack.export job's ID). */
+                exportId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archive. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/gzip": string;
+                };
+            };
+            /** @description The requested range. */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/gzip": string;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Requested Range Not Satisfiable */
+            416: {
                 headers: {
                     [name: string]: unknown;
                 };
