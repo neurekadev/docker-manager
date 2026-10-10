@@ -424,7 +424,7 @@ func (w *world) run(j domain.Job) protocol.ResultPayload {
 	cur, _ := w.jobs.Get(w.ctx, j.ID)
 	cur.State, cur.ErrorClass, cur.ResultOutput = domain.JobState(res.Outcome), res.ErrorClass, st.Output
 	w.jobs.put(cur)
-	var finish func(context.Context, bun.IDB, domain.Job) error = w.svc.onExportFinished
+	finish := w.svc.onExportFinished
 	if j.Kind == jobspec.StackImportArchive {
 		finish = w.svc.onImportFinished
 	}

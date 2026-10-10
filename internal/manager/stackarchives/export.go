@@ -130,7 +130,8 @@ func (e *BlockedError) Error() string {
 	return "blocked by its check: " + strings.Join(codes, ", ")
 }
 
-// ErrExportNotFound: no such archive (expired, removed or never written).
+// ErrExportNotFound is returned for an archive that expired, was removed
+// or was never written.
 var ErrExportNotFound = errors.New("stack archive not found")
 
 func stackRef(st domain.Stack) protocol.ProjectRef {
