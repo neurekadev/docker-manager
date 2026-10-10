@@ -380,7 +380,7 @@ func (h *stackArchivesAPI) startExport(ctx context.Context, in *stackExportInput
 }
 
 func (h *stackArchivesAPI) download(ctx context.Context, in *stackExportDownloadInput) (*huma.StreamResponse, error) {
-	_, _, st, err := h.exportStack(ctx, in.StackID)
+	c, _, st, err := h.exportStack(ctx, in.StackID)
 	if err != nil {
 		return nil, err
 	}
@@ -388,6 +388,14 @@ func (h *stackArchivesAPI) download(ctx context.Context, in *stackExportDownload
 	f, err := h.svc.Export(ctx, st.ID, in.ExportID)
 	if err != nil {
 		return nil, archiveErr(err)
+	}
+	// The archive holds the data of its volumes: whoever downloads it (not
+	// only who exported it) must be allowed to download their files.
+	may := mayDownload(c, st)
+	for _, v := range f.VolumeNames {
+		if !may(v) {
+			return nil, Forbidden("not permitted: volume.files.download on " + v)
+		}
 	}
 	start, length, partial, err := byteRange(in.Range, f.Size)
 	if err != nil {

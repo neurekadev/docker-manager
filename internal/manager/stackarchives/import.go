@@ -84,7 +84,7 @@ func (p ImportPlan) VolumeNames() []string {
 // Renaming: the names Compose derives from the project name follow the
 // new stack's name.
 
-func renamedVolume(m Manifest, v ManifestVolume, name string) string {
+func renamedVolume(v ManifestVolume, name string) string {
 	if v.FollowsProject {
 		return name + "_" + v.Key
 	}
@@ -124,7 +124,7 @@ func destinationQuery(m Manifest, name string) protocol.MigrationDestinationQuer
 		}
 	}
 	for _, v := range m.Volumes {
-		q.Volumes = append(q.Volumes, renamedVolume(m, v, name))
+		q.Volumes = append(q.Volumes, renamedVolume(v, name))
 	}
 	for _, e := range m.NotIncluded {
 		if e.Kind == ExcludedVolume && e.Key != "" {
@@ -157,7 +157,7 @@ func evaluateImport(f importFacts) ImportPlan {
 	}
 	for _, v := range m.Volumes {
 		st := f.upload.Volumes[v.Key]
-		plan.Volumes = append(plan.Volumes, ImportVolume{Key: v.Key, Source: v.Name, Name: renamedVolume(m, v, f.name), PartStats: st})
+		plan.Volumes = append(plan.Volumes, ImportVolume{Key: v.Key, Source: v.Name, Name: renamedVolume(v, f.name), PartStats: st})
 		plan.VolumeBytes += st.Bytes
 	}
 	if f.upload.PinnedName != "" && f.upload.PinnedName != f.name {

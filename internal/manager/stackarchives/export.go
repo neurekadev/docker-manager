@@ -83,8 +83,10 @@ type ExportFile struct {
 	SHA256    string    `json:"sha256"`
 	CreatedAt time.Time `json:"createdAt"`
 	ExpiresAt time.Time `json:"expiresAt"`
-	// Volumes are the included volume keys.
-	Volumes []string `json:"volumes"`
+	// Volumes are the included volume keys; VolumeNames their names (a
+	// download needs volume.files.download on each).
+	Volumes     []string `json:"volumes"`
+	VolumeNames []string `json:"volumeNames"`
 }
 
 // ExportPlan is an export's preview, computed before anything stops.
@@ -339,6 +341,7 @@ type exportInput struct {
 	StackID        string         `json:"stackId"`
 	Volumes        []exportVolume `json:"volumes,omitempty"`
 	Excluded       []string       `json:"excluded,omitempty"`
+	ProjectBytes   int64          `json:"projectBytes"`
 	TotalBytes     int64          `json:"totalBytes"`
 	TimeoutSeconds int            `json:"timeoutSeconds,omitempty"`
 }
@@ -356,7 +359,7 @@ func (s *Service) StartExport(ctx context.Context, p authz.Principal, st domain.
 	if !plan.Allowed() {
 		return domain.Job{}, &BlockedError{Blockers: plan.Blockers}
 	}
-	in := exportInput{StackID: st.ID, TotalBytes: plan.TotalBytes, TimeoutSeconds: r.TimeoutSeconds}
+	in := exportInput{StackID: st.ID, ProjectBytes: plan.ProjectBytes, TotalBytes: plan.TotalBytes, TimeoutSeconds: r.TimeoutSeconds}
 	for _, v := range plan.Volumes {
 		switch {
 		case v.Included:
@@ -583,7 +586,7 @@ func (s *Service) manifest(st domain.Stack, f *protocol.MigrationProjectFacts, i
 	m := Manifest{Format: FormatName, Version: FormatVersion, ExportedAt: s.now(), ManagerVersion: s.opts.ManagerVersion,
 		Stack: ManifestStack{Name: st.Name, DisplayName: st.DisplayName, Description: st.Meta.Description, Links: st.Links,
 			ConfigFiles: st.ConfigFiles, EnvFiles: st.EnvFiles},
-		Project: PartStats{Entries: f.DirEntries, Bytes: f.DirBytes}, Volumes: []ManifestVolume{}, NotIncluded: []Exclusion{},
+		Project: PartStats{Bytes: in.ProjectBytes}, Volumes: []ManifestVolume{}, NotIncluded: []Exclusion{},
 		Services: []ManifestService{}, Networks: []ManifestNetwork{}, ExternalVolumes: []string{}}
 	for _, v := range in.Volumes {
 		m.Volumes = append(m.Volumes, ManifestVolume{Key: v.Key, Name: v.Name, FollowsProject: v.FollowsProject, Labels: maps.Clone(v.Labels),
@@ -725,12 +728,12 @@ func (s *Service) writeArchive(ctx context.Context, sc *jobexec.StepContext, st 
 	if err := os.Chtimes(final, now, now); err != nil {
 		return nil, err
 	}
-	keys := make([]string, 0, len(in.Volumes))
+	keys, names := make([]string, 0, len(in.Volumes)), make([]string, 0, len(in.Volumes))
 	for _, v := range in.Volumes {
-		keys = append(keys, v.Key)
+		keys, names = append(keys, v.Key), append(names, v.Name)
 	}
 	return &ExportFile{JobID: sc.JobID, StackID: st.ID, FileName: s.exportFileName(st, now), Size: cw.n,
-		SHA256: hex.EncodeToString(h.Sum(nil)), CreatedAt: now, ExpiresAt: now.Add(s.opts.Retention), Volumes: keys}, nil
+		SHA256: hex.EncodeToString(h.Sum(nil)), CreatedAt: now, ExpiresAt: now.Add(s.opts.Retention), Volumes: keys, VolumeNames: names}, nil
 }
 
 // sendPart reads one part from the agent (migration.send) through use and

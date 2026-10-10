@@ -61,7 +61,7 @@ func (f *fakeArchives) Export(_ context.Context, stackID, jobID string) (stackar
 		return stackarchives.ExportFile{}, stackarchives.ErrExportNotFound
 	}
 	return stackarchives.ExportFile{JobID: jobID, StackID: stackID, FileName: "shop-2026-10-10.tar.gz", Size: int64(len(f.archive)),
-		SHA256: "abc", ExpiresAt: time.Now().Add(time.Hour)}, nil
+		SHA256: "abc", ExpiresAt: time.Now().Add(time.Hour), Volumes: []string{"data"}, VolumeNames: []string{"shop_data"}}, nil
 }
 
 type nopCloser struct{ *bytes.Reader }
@@ -166,6 +166,11 @@ func TestStackExportNeedsFilesAndDefinition(t *testing.T) {
 	r = authztest.Do(t, h, "exporter", start)
 	if r.Status != http.StatusAccepted || !strings.Contains(string(r.Body), "job-exp") {
 		t.Fatalf("start %d %s", r.Status, r.Body)
+	}
+	// The archive holds the volume's data: downloading it needs the volume's
+	// files too, whoever exported it.
+	if r := authztest.Do(t, h, "novolumes", download); r.Status != http.StatusForbidden {
+		t.Errorf("novolumes download: %d, want 403", r.Status)
 	}
 	r = authztest.Do(t, h, "exporter", download)
 	if r.Status != http.StatusOK || string(r.Body) != "0123456789" ||
