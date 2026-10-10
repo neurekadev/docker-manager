@@ -530,7 +530,8 @@ snapshot contents can hold secrets).
   404 once the archive expired (a day after the export). A failure
   mid-stream aborts the connection. Audited (`stack.export`); it needs
   what the export needed (`stack.export`, `stack.files.download`,
-  `stack.definition.read`).
+  `stack.definition.read` and `volume.files.download` on each volume the
+  archive holds), whoever exported it.
 - **Upload** `POST /stack-archives` takes the archive as the raw body
   (`application/octet-stream` or `application/gzip`; 415 otherwise,
   411 without `Content-Length`, 413 above

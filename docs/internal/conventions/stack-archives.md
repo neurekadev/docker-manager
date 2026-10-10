@@ -38,7 +38,9 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
 - Archives hold `.env` values and volume data: an export needs
   `stack.export` plus `stack.files.download`, `stack.definition.read` and
   `volume.files.download` on each included volume, checked at the API and
-  again in the job's `prepare`; an upload is visible to its uploader only.
+  again in the job's `prepare`; a download needs the same of whoever
+  downloads it (`ExportFile.VolumeNames`), not only of who exported it; an
+  upload is visible to its uploader only.
   Never log, audit or put in job inputs anything read from an archive but
   names, counts, sizes and checksums.
 - Files live in `<data dir>/stack-archives` (`exports/<jobId>.tar.gz`,
