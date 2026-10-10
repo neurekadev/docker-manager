@@ -36,6 +36,8 @@ let answer: (excluded: string[]) => Partial<StackExportPreview>;
 let checks: unknown[] = [];
 let started: unknown[] = [];
 let running: Job[] = [];
+// The answer of GET /jobs/job-e.
+let watched: Job;
 
 function preview(excluded: string[], over: Partial<StackExportPreview> = {}): StackExportPreview {
 	const data = !excluded.includes('data');
@@ -98,6 +100,7 @@ beforeEach(() => {
 	checks = [];
 	started = [];
 	running = [];
+	watched = exportJob;
 	answer = () => ({});
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
 		const req = input instanceof Request ? input : new Request(String(input), init);
@@ -120,7 +123,7 @@ beforeEach(() => {
 		}
 		if (url.pathname === '/api/v1/jobs')
 			return json(200, { items: running, total: running.length });
-		if (url.pathname === '/api/v1/jobs/job-e') return json(200, exportJob);
+		if (url.pathname === '/api/v1/jobs/job-e') return json(200, watched);
 		return json(404, {
 			code: 'not_found',
 			message: 'no',
@@ -287,5 +290,49 @@ describe('ExportArchiveDialog', () => {
 		).toBeInTheDocument();
 		expect(tray.jobs).toEqual([]);
 		expect(screen.queryByRole('button', { name: 'Export Archive' })).toBeNull();
+	});
+
+	it('downloads the archive at once when the export it shows succeeds', async () => {
+		const clicked: string[] = [];
+		vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+			this: HTMLAnchorElement
+		) {
+			clicked.push(this.getAttribute('href') ?? '');
+		});
+		running = [exportJob];
+		watched = { ...exportJob, state: 'succeeded' };
+		answer = () => ({
+			latest: {
+				exportId: 'job-e',
+				fileName: 'silo-2026-10-10.tar.gz',
+				size: 2048,
+				sha256: 'abc',
+				createdAt: '2026-10-10T10:00:00Z',
+				expiresAt: '2026-10-11T10:00:00Z',
+				volumes: ['data']
+			}
+		});
+		dialog();
+		expect(await screen.findByText('Downloading silo-2026-10-10.tar.gz')).toBeInTheDocument();
+		expect(clicked).toEqual(['/api/v1/stacks/st-1/exports/job-e']);
+		expect(screen.getByText('Exported Silo as an archive.')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Download Archive' })).toBeInTheDocument();
+	});
+
+	it('downloads nothing when the manager names no archive after the export', async () => {
+		const clicked: string[] = [];
+		vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+			this: HTMLAnchorElement
+		) {
+			clicked.push(this.getAttribute('href') ?? '');
+		});
+		running = [exportJob];
+		watched = { ...exportJob, state: 'succeeded' };
+		dialog();
+		expect(
+			await screen.findByText("You can't download this archive's volumes.")
+		).toBeInTheDocument();
+		expect(clicked).toEqual([]);
+		expect(screen.queryByRole('button', { name: 'Download Archive' })).toBeNull();
 	});
 });

@@ -178,7 +178,7 @@ func (s *Service) PreviewExport(ctx context.Context, st domain.Stack, r ExportRe
 }
 
 func (s *Service) previewExport(ctx context.Context, st domain.Stack, r ExportRequest, measure bool) (ExportPlan, *protocol.MigrationProjectFacts, error) {
-	plan := ExportPlan{StackID: st.ID, ProjectName: st.Name, MaxBytes: s.opts.MaxSize, ManagerFree: s.opts.FreeBytes(s.exportsDir())}
+	plan := ExportPlan{StackID: st.ID, ProjectName: st.Name, MaxBytes: s.opts.MaxSize, ManagerFree: s.free(s.exportsDir())}
 	env, err := s.opts.Environments.GetEnvironment(ctx, st.EnvironmentID)
 	if err != nil {
 		return plan, nil, err
@@ -332,18 +332,23 @@ type exportVolume struct {
 	Name           string            `json:"name"`
 	FollowsProject bool              `json:"followsProject,omitempty"`
 	Labels         map[string]string `json:"labels,omitempty"`
-	Bytes          int64             `json:"bytes"`
-	Entries        int64             `json:"entries"`
 }
 
-// exportInput is the stack.export job input.
+// exportInput is the stack.export job input. It holds no sizes: they
+// change while a stack runs, and a retried request with the same
+// Idempotency-Key must find the same job.
 type exportInput struct {
 	StackID        string         `json:"stackId"`
 	Volumes        []exportVolume `json:"volumes,omitempty"`
 	Excluded       []string       `json:"excluded,omitempty"`
-	ProjectBytes   int64          `json:"projectBytes"`
-	TotalBytes     int64          `json:"totalBytes"`
 	TimeoutSeconds int            `json:"timeoutSeconds,omitempty"`
+}
+
+// exportSizes are the sizes the prepare step measured.
+type exportSizes struct {
+	Project PartStats            `json:"project"`
+	Volumes map[string]PartStats `json:"volumes,omitempty"`
+	Total   int64                `json:"total"`
 }
 
 // StartExport re-runs the preview and, without blockers, enqueues the
@@ -359,12 +364,11 @@ func (s *Service) StartExport(ctx context.Context, p authz.Principal, st domain.
 	if !plan.Allowed() {
 		return domain.Job{}, &BlockedError{Blockers: plan.Blockers}
 	}
-	in := exportInput{StackID: st.ID, ProjectBytes: plan.ProjectBytes, TotalBytes: plan.TotalBytes, TimeoutSeconds: r.TimeoutSeconds}
+	in := exportInput{StackID: st.ID, TimeoutSeconds: r.TimeoutSeconds}
 	for _, v := range plan.Volumes {
 		switch {
 		case v.Included:
-			in.Volumes = append(in.Volumes, exportVolume{Key: v.Key, Name: v.Name, FollowsProject: v.FollowsProject, Labels: v.Labels,
-				Bytes: v.Bytes, Entries: v.Entries})
+			in.Volumes = append(in.Volumes, exportVolume{Key: v.Key, Name: v.Name, FollowsProject: v.FollowsProject, Labels: v.Labels})
 		case v.Excluded:
 			in.Excluded = append(in.Excluded, v.Key)
 		}
@@ -384,6 +388,8 @@ type exportOutput struct {
 	Stopped bool     `json:"stopped,omitempty"`
 	Running []string `json:"running,omitempty"`
 	Started bool     `json:"started,omitempty"`
+	// Sizes are the data measured by the prepare step.
+	Sizes *exportSizes `json:"sizes,omitempty"`
 	// File is the written archive.
 	File *ExportFile `json:"file,omitempty"`
 }
@@ -454,16 +460,11 @@ func (s *Service) exportPrepare(ctx context.Context, sc *jobexec.StepContext) er
 	if err := s.authorize(ctx, sc.JobID, ExportChecks(st, names)); err != nil {
 		return err
 	}
-	sc.Progress(ctx, 2, "checking the stack")
-	plan, _, err := s.previewExport(ctx, st, ExportRequest{ExcludeVolumes: in.Excluded}, false)
+	sc.Progress(ctx, 2, "checking and measuring the stack")
+	plan, _, err := s.previewExport(ctx, st, ExportRequest{ExcludeVolumes: in.Excluded}, true)
 	if err != nil {
 		return agentFailure(err, ClassBlocked, "Nothing was changed. Export the stack again.")
 	}
-	// The sizes were measured when the export was requested; this check
-	// only looks for what changed since.
-	plan.Blockers = slices.DeleteFunc(plan.Blockers, func(f migrations.Finding) bool {
-		return f.Code == FindingArchiveTooLarge || f.Code == FindingManagerSpace
-	})
 	if !plan.Allowed() {
 		b := plan.Blockers[0]
 		return &classed{class: ClassBlocked, err: fmt.Errorf("%s: %s", b.Code, b.Message),
@@ -475,11 +476,13 @@ func (s *Service) exportPrepare(ctx context.Context, sc *jobexec.StepContext) er
 				recovery: "Nothing was changed. Check the export again."}
 		}
 	}
-	if free := s.opts.FreeBytes(s.exportsDir()); free >= 0 && in.TotalBytes+spaceMargin > free {
-		return &classed{class: FindingManagerSpace, err: fmt.Errorf("the manager has only %s free", humanize.Bytes(free)),
-			recovery: "Nothing was changed. Free space in the manager's data directory, then export the stack again."}
+	sizes := exportSizes{Project: PartStats{Bytes: plan.ProjectBytes}, Volumes: map[string]PartStats{}, Total: plan.TotalBytes}
+	for _, v := range plan.Volumes {
+		if v.Included {
+			sizes.Volumes[v.Key] = PartStats{Bytes: v.Bytes, Entries: v.Entries}
+		}
 	}
-	return nil
+	return writeExportOutput(ctx, sc, func(o *exportOutput) { o.Sizes = &sizes })
 }
 
 func (s *Service) exportStop(ctx context.Context, sc *jobexec.StepContext) error {
@@ -550,9 +553,13 @@ func (s *Service) exportWrite(ctx context.Context, sc *jobexec.StepContext) erro
 	if err != nil {
 		return agentFailure(err, ClassTransferFailed, recoveryExport)
 	}
-	m := s.manifest(st, facts, in)
+	sizes := readExportOutput(sc.Output()).Sizes
+	if sizes == nil {
+		sizes = &exportSizes{}
+	}
+	m := s.manifest(st, facts, in, *sizes)
 	for attempt := 1; ; attempt++ {
-		f, err := s.writeArchive(ctx, sc, st, in, m)
+		f, err := s.writeArchive(ctx, sc, st, in, m, sizes.Total)
 		if err == nil {
 			return writeExportOutput(ctx, sc, func(o *exportOutput) { o.File = f })
 		}
@@ -582,15 +589,15 @@ func (s *Service) exportWrite(ctx context.Context, sc *jobexec.StepContext) erro
 }
 
 // manifest describes the archive an export writes.
-func (s *Service) manifest(st domain.Stack, f *protocol.MigrationProjectFacts, in exportInput) Manifest {
+func (s *Service) manifest(st domain.Stack, f *protocol.MigrationProjectFacts, in exportInput, sizes exportSizes) Manifest {
 	m := Manifest{Format: FormatName, Version: FormatVersion, ExportedAt: s.now(), ManagerVersion: s.opts.ManagerVersion,
 		Stack: ManifestStack{Name: st.Name, DisplayName: st.DisplayName, Description: st.Meta.Description, Links: st.Links,
 			ConfigFiles: st.ConfigFiles, EnvFiles: st.EnvFiles},
-		Project: PartStats{Bytes: in.ProjectBytes}, Volumes: []ManifestVolume{}, NotIncluded: []Exclusion{},
+		Project: sizes.Project, Volumes: []ManifestVolume{}, NotIncluded: []Exclusion{},
 		Services: []ManifestService{}, Networks: []ManifestNetwork{}, ExternalVolumes: []string{}}
 	for _, v := range in.Volumes {
 		m.Volumes = append(m.Volumes, ManifestVolume{Key: v.Key, Name: v.Name, FollowsProject: v.FollowsProject, Labels: maps.Clone(v.Labels),
-			PartStats: PartStats{Entries: v.Entries, Bytes: v.Bytes}})
+			PartStats: sizes.Volumes[v.Key]})
 	}
 	for _, v := range f.Volumes {
 		switch {
@@ -653,7 +660,16 @@ func (p *progressReader) Read(b []byte) (int, error) {
 }
 
 // writeArchive writes the whole archive once (a retry starts over).
-func (s *Service) writeArchive(ctx context.Context, sc *jobexec.StepContext, st domain.Stack, in exportInput, m Manifest) (*ExportFile, error) {
+func (s *Service) writeArchive(ctx context.Context, sc *jobexec.StepContext, st domain.Stack, in exportInput, m Manifest, measured int64) (*ExportFile, error) {
+	// The archive is at most the measured data (compressed); claim that
+	// much of the manager's free space while it is written, against other
+	// exports and uploads.
+	release, err := s.reserve(s.exportsDir(), measured)
+	if err != nil {
+		return nil, &classed{class: FindingManagerSpace, err: err,
+			recovery: recoveryExport + " Free space in the manager's data directory first."}
+	}
+	defer release()
 	part := s.exportPath(sc.JobID) + partSuffix
 	f, err := os.OpenFile(part, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -671,7 +687,7 @@ func (s *Service) writeArchive(ctx context.Context, sc *jobexec.StepContext, st 
 	for _, v := range in.Volumes {
 		parts = append(parts, Part{Volume: v.Key})
 	}
-	total := max(in.TotalBytes, 1)
+	total := max(measured, 1)
 	var done int64
 	last := s.clk.Now()
 	for _, p := range parts {

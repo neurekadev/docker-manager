@@ -11,7 +11,9 @@
 	// stack still on the manager can be downloaded again. The export's
 	// progress shows here, also after a reload or when the dialog opens
 	// again (the running list, docs/internal/web.md "Job progress after
-	// reload"); it ends with the download starting by itself. Closed while
+	// reload"); it ends with the download starting by itself (unless the
+	// user may not download one of its volumes: then the manager names no
+	// archive and none downloads). Closed while
 	// the export runs, the stack's job tray shows it on, and its success
 	// toast offers the download.
 	import { onDestroy, untrack } from 'svelte';
@@ -87,6 +89,9 @@
 	let finished = $state<Job | null>(null);
 	// The archive this dialog's export wrote (once the check after it ran).
 	let written = $state<StackExportFile | null>(null);
+	// The check after the export named no archive: the user may not
+	// download one of its volumes.
+	let missing = $state(false);
 
 	// The stack's running export: the dialog shows its progress.
 	const exports = useTrackedJobs(
@@ -159,6 +164,7 @@
 		startError = null;
 		finished = null;
 		written = null;
+		missing = false;
 	}
 
 	// Closed while the export runs: the stack's job tray shows it on.
@@ -233,14 +239,22 @@
 		release = null;
 		// The stack stopped and started again.
 		void queryClient.invalidateQueries({ queryKey: stackKeys.all });
-		if (job.state !== 'succeeded') return;
-		// The check now names the new archive: download it at once.
+		if (job.state === 'succeeded') void lookUp(job.id, true);
+	}
+
+	/**
+	 * The archive an export wrote, from a check after it (the newest one);
+	 * `auto` downloads it at once while the dialog is open.
+	 */
+	async function lookUp(exportId: string, auto: boolean) {
 		const p = await runCheck();
-		const file = p?.latest?.exportId === job.id ? p.latest : null;
+		if (!p) return;
+		const file = p.latest?.exportId === exportId ? p.latest : null;
 		written = file;
-		if (!open) return;
-		downloadStackExport(stackId, job.id);
-		toast.info(file ? `Downloading ${file.fileName}` : `Downloading the archive of ${title}`);
+		missing = !file;
+		if (!auto || !file || !open) return;
+		downloadStackExport(stackId, file.exportId);
+		toast.info(`Downloading ${file.fileName}`);
 	}
 
 	function download(f: StackExportFile) {
@@ -253,6 +267,8 @@
 		jobId = null;
 		finished = null;
 		startError = null;
+		written = null;
+		missing = false;
 		void runCheck();
 	}
 
@@ -318,6 +334,18 @@
 					{@render latestNotice(written, `Exported ${title} as an archive.`)}
 				{:else if checking}
 					<div aria-busy="true"><Skeleton lines={1} /></div>
+				{:else if missing}
+					<Notice tone="info" title="Exported {title} as an archive." live="none">
+						You can't download this archive's volumes.
+					</Notice>
+				{:else if checkError}
+					<ErrorState
+						error={checkError}
+						title="The archive could not be looked up."
+						onretry={() => finished && void lookUp(finished.id, false)}
+						bare
+						compact
+					/>
 				{/if}
 			{:else if finished}
 				<p class="muted">

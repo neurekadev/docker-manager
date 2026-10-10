@@ -48,7 +48,7 @@ func (f *fakeArchives) PreviewExport(_ context.Context, st domain.Stack, r stack
 	f.mayData = append(f.mayData, r.MayDownload("shop_data"))
 	f.mu.Unlock()
 	return stackarchives.ExportPlan{StackID: st.ID, Volumes: []stackarchives.ExportVolume{{Key: "data", Name: "shop_data", Included: true, Bytes: 10}},
-		Running: []string{"web"}}, nil
+		Running: []string{"web"}, Latest: &stackarchives.ExportFile{JobID: "job-exp", FileName: "shop-2026-10-10.tar.gz", VolumeNames: []string{"shop_data"}}}, nil
 }
 
 func (f *fakeArchives) StartExport(_ context.Context, _ authz.Principal, st domain.Stack, r stackarchives.ExportRequest) (domain.Job, error) {
@@ -146,8 +146,14 @@ func TestStackExportNeedsFilesAndDefinition(t *testing.T) {
 	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &p) != nil || len(p.Volumes) != 1 || !p.Volumes[0].Included || p.Running[0] != "web" {
 		t.Fatalf("preview %d %s", r.Status, r.Body)
 	}
-	if r := authztest.Do(t, h, "novolumes", preview); r.Status != http.StatusOK {
-		t.Fatalf("novolumes preview %d", r.Status)
+	if p.Latest == nil || p.Latest.ExportID != "job-exp" {
+		t.Errorf("latest %+v", p.Latest)
+	}
+	// An archive whose volumes the caller may not download is not offered.
+	r = authztest.Do(t, h, "novolumes", preview)
+	var np StackExportPreview
+	if r.Status != http.StatusOK || json.Unmarshal(r.Body, &np) != nil || np.Latest != nil {
+		t.Fatalf("novolumes preview %d %s", r.Status, r.Body)
 	}
 	if got := arch.mayData; len(got) != 2 || !got[0] || got[1] {
 		t.Errorf("MayDownload answers %v, want [true false]", got)

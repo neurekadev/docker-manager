@@ -47,6 +47,12 @@ func TestArchiveStack(t *testing.T) {
 		t.Fatalf("revisions %+v, %v", revs, err)
 	}
 
+	// Files that do not load are not recorded.
+	h.write("services: [not a mapping\n", "web", "compose.yaml")
+	if _, err := h.svc.RecordArchiveStack(h.ctx, st.ID, alice); stackErrCode(err) != domain.StackErrInvalidDefinition {
+		t.Fatalf("invalid files: %v", err)
+	}
+
 	if err := h.svc.ForgetArchiveStack(h.ctx, h.db, st.ID, domain.Job{ID: "job-1"}); err != nil {
 		t.Fatal(err)
 	}
@@ -55,22 +61,5 @@ func TestArchiveStack(t *testing.T) {
 	}
 	if err := h.svc.ForgetArchiveStack(h.ctx, h.db, st.ID, domain.Job{ID: "job-1"}); err != nil {
 		t.Fatalf("forgetting twice: %v", err)
-	}
-}
-
-// TestArchiveStackPinnedName: files that pin another project name are not
-// recorded.
-func TestArchiveStackPinnedName(t *testing.T) {
-	h := newHarness(t)
-	st, err := h.svc.ReserveArchiveStack(h.ctx, domain.StackFromArchive{EnvironmentID: env, Name: "copy"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	h.write("name: original\nservices:\n  app:\n    image: nginx:1.27\n", "copy", "compose.yaml")
-	if _, err := h.svc.RecordArchiveStack(h.ctx, st.ID, alice); stackErrCode(err) != domain.StackErrInvalidDefinition {
-		t.Fatalf("err = %v", err)
-	}
-	if got := h.get(st.ID); got.Observed != nil {
-		t.Fatalf("a revision was recorded: %+v", got.Observed)
 	}
 }

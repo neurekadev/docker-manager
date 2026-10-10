@@ -12,15 +12,19 @@
 	// warnings and the volumes whose names follow the new name. Create
 	// Stack starts the job that fills the new stack; its progress shows
 	// here, also after a reload or when the dialog opens again (the running
-	// list, docs/internal/web.md "Job progress after reload"). An upload no
-	// stack was created from is discarded when the dialog closes.
+	// list, docs/internal/web.md "Job progress after reload"; only the
+	// caller's own import, never another user's in the environment). A
+	// deploy asked for runs as a job of its own once the stack is filled;
+	// when it could not be started the stack is kept and opens from here.
+	// An upload no stack was created from is discarded when the dialog
+	// closes.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { onDestroy, untrack } from 'svelte';
 	import FileArchive from '@lucide/svelte/icons/file-archive';
 	import Upload from '@lucide/svelte/icons/upload';
 	import type { Job } from '$lib/api/client';
-	import { environmentsQuery, myPermissionsQuery } from '$lib/api/queries';
+	import { environmentsQuery, myPermissionsQuery, sessionQuery } from '$lib/api/queries';
 	import Disclosure from '$lib/features/common/Disclosure.svelte';
 	import { useTrackedJobs } from '$lib/features/jobs/tracked.svelte';
 	import { routes } from '$lib/routes';
@@ -53,6 +57,8 @@
 		importBlocker,
 		importBody,
 		importKey,
+		importOutcome,
+		ownJob,
 		renamedVolumes,
 		type ImportChoice,
 		type StackArchive,
@@ -72,6 +78,7 @@
 	const queryClient = useQueryClient();
 	const envs = createQuery(() => environmentsQuery());
 	const perms = createQuery(() => myPermissionsQuery());
+	const session = createQuery(() => sessionQuery());
 
 	// The upload: the chosen file, its progress, the archive the manager
 	// answered with, and whether a stack was created from it (then it is
@@ -155,6 +162,9 @@
 			: 'Create Stack From Archive'
 	);
 
+	const outcome = $derived(finished ? importOutcome(finished) : null);
+	const createdName = $derived(jobName || created.data?.name || 'The stack');
+
 	const blocker = $derived(
 		archive && !jobId
 			? importBlocker({ environment: env, name, preview, checking, stale })
@@ -183,6 +193,7 @@
 	});
 
 	function reset() {
+		environmentId = suggested ?? '';
 		file = null;
 		uploadError = null;
 		archive = null;
@@ -321,10 +332,10 @@
 
 	// A running job (after a reload, or the dialog opened again).
 	$effect(() => {
-		const job = imports.running[0];
+		const job = ownJob(imports.running, session.data?.user?.id, ended);
 		if (!open || !job) return;
 		untrack(() => {
-			if (jobId || starting || uploading || archive || ended.has(job.id)) return;
+			if (jobId || starting || uploading || archive) return;
 			jobId = job.id;
 			finished = null;
 			stackId = jobStackId(job) ?? null;
@@ -337,6 +348,8 @@
 		ended.add(job.id);
 		imports.markFinished(job);
 		finished = job;
+		// The stack is kept and the upload gone when only the deploy failed.
+		if (importOutcome(job) === 'deploy_failed') used = true;
 		refresh();
 		if (job.state === 'succeeded') {
 			const what = jobName || created.data?.name || 'the stack';
@@ -543,7 +556,11 @@
 	<div class="body">
 		{#if jobId}
 			<JobProgress {jobId} title={jobTitle} onfinish={done} />
-			{#if finished && finished.state !== 'succeeded'}
+			{#if outcome === 'deploy_failed'}
+				<p class="muted">
+					{createdName} was created, but its deploy did not start. Deploy it from its page.
+				</p>
+			{:else if outcome === 'failed'}
 				<p class="muted">
 					{archive
 						? 'The archive stays uploaded for a day. Fix the cause above, then try again.'
@@ -612,12 +629,14 @@
 	</div>
 	{#snippet footer()}
 		{#if jobId}
-			{#if finished?.state === 'succeeded' && stackId}
+			{#if (outcome === 'created' || outcome === 'deploy_failed') && stackId}
 				<Button variant="ghost" onclick={() => (open = false)}>Close</Button>
 				<Button variant="primary" onclick={openStack}>Open Stack</Button>
 			{:else if finished}
 				<Button variant="ghost" onclick={() => (open = false)}>Close</Button>
-				{#if archive}<Button variant="primary" onclick={tryAgain}>Try Again</Button>{/if}
+				{#if archive && outcome === 'failed'}<Button variant="primary" onclick={tryAgain}
+						>Try Again</Button
+					>{/if}
 			{:else}
 				<Button variant="ghost" onclick={() => (open = false)}>Close</Button>
 			{/if}

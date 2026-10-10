@@ -257,25 +257,59 @@ func TestImportFailureRemovesEverything(t *testing.T) {
 	}
 }
 
-// TestImportDeployFailureKeepsTheStack: after the files and volumes are
-// kept, a failed deploy fails the job but undoes nothing.
-func TestImportDeployFailureKeepsTheStack(t *testing.T) {
+// TestImportQueuesTheDeploy: the deploy is a job of its own, queued and
+// not awaited (it needs the stack's lock, which the import holds); a deploy
+// that cannot be queued fails the import but undoes nothing.
+func TestImportQueuesTheDeploy(t *testing.T) {
 	w := newWorld(t)
 	u := w.upload(w.export(ExportRequest{}))
-	w.jobs.deployOutcome = domain.JobFailed
+	_, j, err := w.svc.StartImport(w.ctx, w.user, u.ID, ImportRequest{EnvironmentID: dstEnv, Name: "shop", Deploy: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res := w.run(j); res.Outcome != string(domain.JobSucceeded) || w.stacks.deploys != 1 {
+		t.Fatalf("outcome %s (%s): %s, deploys %d", res.Outcome, res.ErrorClass, res.Message, w.stacks.deploys)
+	}
+	done, _ := w.jobs.Get(w.ctx, j.ID)
+	if out := readImportOutput(done.ResultOutput); !out.Kept || out.DeployJobID == "" {
+		t.Fatalf("output %+v", out)
+	}
+
+	w = newWorld(t)
+	u = w.upload(w.export(ExportRequest{}))
+	w.stacks.deployErr = errBoom
 	st, j, err := w.svc.StartImport(w.ctx, w.user, u.ID, ImportRequest{EnvironmentID: dstEnv, Name: "shop", Deploy: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	res := w.run(j)
-	if res.Outcome != string(domain.JobFailed) || res.ErrorClass != ClassDeployFailed || w.stacks.deploys != 1 {
-		t.Fatalf("outcome %s (%s), deploys %d", res.Outcome, res.ErrorClass, w.stacks.deploys)
+	if res.Outcome != string(domain.JobFailed) || res.ErrorClass != ClassDeployFailed {
+		t.Fatalf("outcome %s (%s)", res.Outcome, res.ErrorClass)
 	}
 	if !w.dst.Host.Exists(w.dst.ProjectDir("shop")) || len(w.stacks.forgotten) != 0 || w.stack(st.ID).ID == "" {
 		t.Fatal("the stack was not kept")
 	}
 	if _, err := w.dst.Engine.InspectVolume(w.ctx, "shop_dbdata"); err != nil {
 		t.Fatal("the volume was removed")
+	}
+}
+
+// TestImportClaimsTheUpload: one stack at a time is created from an
+// upload; a refused start gives it back.
+func TestImportClaimsTheUpload(t *testing.T) {
+	w := newWorld(t)
+	u := w.upload(w.export(ExportRequest{}))
+	if _, _, err := w.svc.StartImport(w.ctx, w.user, u.ID, ImportRequest{EnvironmentID: srcEnv, Name: "shop"}); err == nil {
+		t.Fatal("a taken name was accepted")
+	}
+	if _, _, err := w.svc.StartImport(w.ctx, w.user, u.ID, ImportRequest{EnvironmentID: dstEnv, Name: "one"}); err != nil {
+		t.Fatalf("after a refused start: %v", err)
+	}
+	if _, _, err := w.svc.StartImport(w.ctx, w.user, u.ID, ImportRequest{EnvironmentID: dstEnv, Name: "two"}); !errors.Is(err, ErrUploadInUse) {
+		t.Fatalf("a second stack from the same upload: %v", err)
+	}
+	if err := w.svc.DeleteUpload(w.user, u.ID); !errors.Is(err, ErrUploadInUse) {
+		t.Fatalf("discarding an upload in use: %v", err)
 	}
 }
 
@@ -357,8 +391,8 @@ func TestUploads(t *testing.T) {
 	if _, err := store(int64(len(b)/2), b[:len(b)/2]); !errors.Is(err, ErrInvalid) {
 		t.Errorf("a truncated archive: %v", err)
 	}
-	if _, err := store(int64(len(b)), b[:len(b)-10]); err == nil {
-		t.Error("a short body was accepted")
+	if _, err := store(int64(len(b)), b[:len(b)-10]); !errors.Is(err, ErrUploadIncomplete) {
+		t.Errorf("a short body: %v", err)
 	}
 	if _, err := store(10, []byte("not a tar!")); !errors.Is(err, ErrInvalid) {
 		t.Errorf("garbage: %v", err)
@@ -366,6 +400,17 @@ func TestUploads(t *testing.T) {
 	if _, err := w.svc.StoreUpload(w.ctx, w.user, 2<<30, bytes.NewReader(nil)); !errors.Is(err, ErrUploadTooLarge) {
 		t.Errorf("too large: %v", err)
 	}
+	// Space claimed by transfers in progress counts: nothing overcommits
+	// the disk.
+	release, err := w.svc.reserve(w.svc.uploadsDir(), 100<<30-int64(len(b))-spaceMargin+1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store(int64(len(b)), b); !errors.Is(err, ErrNoSpace) {
+		t.Errorf("with the space claimed: %v", err)
+	}
+	release()
+	release() // once only
 	if entries, _ := os.ReadDir(w.svc.uploadsDir()); len(entries) != 0 {
 		t.Fatalf("refused uploads left files: %v", entries)
 	}
@@ -385,13 +430,23 @@ func TestUploads(t *testing.T) {
 	if err := w.svc.DeleteUpload(bob, u.ID); !errors.Is(err, ErrUploadNotFound) {
 		t.Errorf("another user discards the upload: %v", err)
 	}
-	for range MaxUploadsPerUser - 1 {
+	for range MaxUploadsPerUser - 2 {
 		if _, err := store(int64(len(b)), b); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// An upload still in progress counts too.
+	w.svc.mu.Lock()
+	w.svc.pending["in-flight"] = "u-alice"
+	w.svc.mu.Unlock()
 	if _, err := store(int64(len(b)), b); !errors.Is(err, ErrTooManyUploads) {
 		t.Errorf("one too many: %v", err)
+	}
+	w.svc.mu.Lock()
+	delete(w.svc.pending, "in-flight")
+	w.svc.mu.Unlock()
+	if _, err := store(int64(len(b)), b); err != nil {
+		t.Fatal(err)
 	}
 
 	// A restart reads the uploads back; a day later they are gone, and so

@@ -17107,6 +17107,9 @@
             "type": "string"
           },
           "id": {
+            "examples": [
+              "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+            ],
             "type": "string"
           },
           "managerVersion": {
@@ -17115,6 +17118,9 @@
           },
           "name": {
             "description": "The stack's (Compose project) name at export.",
+            "examples": [
+              "web"
+            ],
             "type": "string"
           },
           "notIncluded": {
@@ -17145,6 +17151,9 @@
             "type": "string"
           },
           "size": {
+            "examples": [
+              52428800
+            ],
             "format": "int64",
             "type": "integer"
           },
@@ -17218,6 +17227,9 @@
           },
           "environmentId": {
             "description": "The environment the stack is created in.",
+            "examples": [
+              "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70"
+            ],
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
@@ -17246,6 +17258,9 @@
             "type": "boolean"
           },
           "archiveId": {
+            "examples": [
+              "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+            ],
             "type": "string"
           },
           "blockers": {
@@ -17255,9 +17270,15 @@
             "type": "array"
           },
           "environmentId": {
+            "examples": [
+              "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70"
+            ],
             "type": "string"
           },
           "name": {
+            "examples": [
+              "shop"
+            ],
             "type": "string"
           },
           "projectBytes": {
@@ -17314,14 +17335,23 @@
             "type": "integer"
           },
           "key": {
+            "examples": [
+              "data"
+            ],
             "type": "string"
           },
           "name": {
             "description": "Its name for the new stack.",
+            "examples": [
+              "shop_data"
+            ],
             "type": "string"
           },
           "source": {
             "description": "Its name in the archive.",
+            "examples": [
+              "web_data"
+            ],
             "type": "string"
           }
         },
@@ -17354,9 +17384,15 @@
           },
           "key": {
             "description": "Compose volume key.",
+            "examples": [
+              "data"
+            ],
             "type": "string"
           },
           "name": {
+            "examples": [
+              "web_data"
+            ],
             "type": "string"
           },
           "notPermitted": {
@@ -17393,10 +17429,16 @@
             "type": "integer"
           },
           "key": {
+            "examples": [
+              "data"
+            ],
             "type": "string"
           },
           "name": {
             "description": "Its name at export.",
+            "examples": [
+              "web_data"
+            ],
             "type": "string"
           }
         },
@@ -17665,6 +17707,11 @@
         "properties": {
           "excludeVolumes": {
             "description": "Compose keys of named volumes whose data is left out. Default: every plain local named volume is included.",
+            "examples": [
+              [
+                "cache"
+              ]
+            ],
             "items": {
               "type": "string"
             },
@@ -17673,6 +17720,9 @@
           },
           "timeoutSeconds": {
             "description": "Stop grace period of the stack's containers.",
+            "examples": [
+              30
+            ],
             "format": "int64",
             "maximum": 3600,
             "minimum": 0,
@@ -17780,6 +17830,9 @@
             "type": "array"
           },
           "stackId": {
+            "examples": [
+              "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"
+            ],
             "type": "string"
           },
           "totalBytes": {
@@ -63974,13 +64027,13 @@
                     "example"
                   ],
                   "sha256": "example",
-                  "size": 1,
+                  "size": 52428800,
                   "volumes": [
                     {
                       "bytes": 1,
                       "entries": 1,
-                      "key": "example",
-                      "name": "web"
+                      "key": "data",
+                      "name": "web_data"
                     }
                   ]
                 },
@@ -64316,13 +64369,13 @@
                     "example"
                   ],
                   "sha256": "example",
-                  "size": 1,
+                  "size": 52428800,
                   "volumes": [
                     {
                       "bytes": 1,
                       "entries": 1,
-                      "key": "example",
-                      "name": "web"
+                      "key": "data",
+                      "name": "web_data"
                     }
                   ]
                 },
@@ -64431,7 +64484,7 @@
           "content": {
             "application/json": {
               "example": {
-                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
                 "name": "web"
               },
               "schema": {
@@ -64456,17 +64509,17 @@
                       "service": "example"
                     }
                   ],
-                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                  "name": "web",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
+                  "name": "shop",
                   "projectBytes": 1,
                   "stacksFreeBytes": 1,
                   "volumeBytes": 1,
                   "volumes": [
                     {
                       "bytes": 1,
-                      "key": "example",
-                      "name": "web",
-                      "source": "example"
+                      "key": "data",
+                      "name": "shop_data",
+                      "source": "web_data"
                     }
                   ],
                   "volumesFreeBytes": 1,
@@ -64641,7 +64694,7 @@
     },
     "/api/v1/stack-archives/{archiveId}/imports": {
       "post": {
-        "description": "Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and deploys the stack when asked. A failure before that removes what the job wrote and forgets the stack; a failed deploy keeps the stack. 501 agent_unsupported for older agents.",
+        "description": "Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and queues a stack.deploy job when asked (the stack is kept from then on: a deploy that cannot be queued fails the job but undoes nothing). A failure before that removes what the job wrote and forgets the stack. 501 agent_unsupported for older agents.",
         "operationId": "create-stack-archive-import",
         "parameters": [
           {
@@ -64672,7 +64725,7 @@
           "content": {
             "application/json": {
               "example": {
-                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
                 "name": "web"
               },
               "schema": {
@@ -67555,7 +67608,12 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {},
+              "example": {
+                "excludeVolumes": [
+                  "cache"
+                ],
+                "timeoutSeconds": 30
+              },
               "schema": {
                 "$ref": "#/components/schemas/StackExportBody"
               }
@@ -67613,8 +67671,8 @@
                       "entries": 1,
                       "excluded": false,
                       "included": false,
-                      "key": "example",
-                      "name": "web",
+                      "key": "data",
+                      "name": "web_data",
                       "notPermitted": false,
                       "reason": "example",
                       "truncated": false
@@ -67821,7 +67879,12 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {},
+              "example": {
+                "excludeVolumes": [
+                  "cache"
+                ],
+                "timeoutSeconds": 30
+              },
               "schema": {
                 "$ref": "#/components/schemas/StackExportBody"
               }

@@ -2,12 +2,14 @@
 // its progress, the summary shows what the archive holds, the environment
 // picker is hidden with one environment, the check runs on its own and
 // its problems keep Create Stack off, Create Stack starts the job, and
-// Cancel discards the upload.
+// Cancel discards the upload. After a reload only the caller's own running
+// import is shown; one whose deploy could not start keeps its stack.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { QueryClient } from '@tanstack/svelte-query';
 import type { Component } from 'svelte';
+import type { Job } from '$lib/api/client';
 import QueryHarness from '../../../test/QueryHarness.svelte';
 import type { XhrLike } from './archive-upload';
 import type { StackArchive, StackArchiveImportPreview } from './archives';
@@ -73,12 +75,41 @@ let checks: unknown[] = [];
 let imports: unknown[] = [];
 let deleted: string[] = [];
 let check: Partial<StackArchiveImportPreview> = {};
+// The caller's running jobs and the answer of GET /jobs/job-i.
+let running: Job[] = [];
+let importJob: Job;
+
+function job(over: Partial<Job> = {}): Job {
+	return {
+		id: 'job-i',
+		kind: 'stack.import_archive',
+		state: 'running',
+		origin: 'manual',
+		executor: 'manager',
+		environmentId: 'env-1',
+		initiatorUserId: 'u-me',
+		targets: [{ type: 'stack', id: 'st-9' }],
+		attempt: 1,
+		progress: { percent: 60, step: 'transfer_volumes' },
+		items: [],
+		locks: [],
+		locksHeld: true,
+		cancelRequested: false,
+		cancellable: true,
+		retryable: false,
+		createdAt: '2026-10-10T10:00:00Z',
+		updatedAt: '2026-10-10T10:00:00Z',
+		...over
+	} as Job;
+}
 
 beforeEach(() => {
 	checks = [];
 	imports = [];
 	deleted = [];
 	check = {};
+	running = [];
+	importJob = job();
 	FakeXhr.last = null;
 	vi.stubGlobal('XMLHttpRequest', FakeXhr);
 	vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -143,7 +174,23 @@ beforeEach(() => {
 					]
 				});
 			case '/api/v1/jobs':
-				return json(200, { items: [], total: 0 });
+				return json(200, { items: running, total: running.length });
+			case '/api/v1/jobs/job-i':
+				return json(200, importJob);
+			case '/api/v1/auth/session':
+				return json(200, {
+					state: 'authenticated',
+					user: { id: 'u-me', username: 'me' }
+				});
+			case '/api/v1/stacks/st-9':
+				return json(200, {
+					id: 'st-9',
+					environmentId: 'env-1',
+					name: 'cloud',
+					status: 'undeployed',
+					view: 'full',
+					actions: []
+				});
 		}
 		return json(404, {
 			code: 'not_found',
@@ -282,5 +329,44 @@ describe('CreateFromArchiveDialog', () => {
 		await screen.findByRole('button', { name: 'Choose Another' });
 		await user.click(screen.getByRole('button', { name: 'Cancel' }));
 		await waitFor(() => expect(deleted).toEqual(['/api/v1/stack-archives/ar-1']));
+	});
+
+	it('shows the caller’s own running import after a reload', async () => {
+		running = [job()];
+		dialog();
+		expect(
+			await screen.findByRole('progressbar', { name: 'Create cloud From Archive progress' })
+		).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Choose Archive' })).toBeNull();
+	});
+
+	it('never shows another user’s import in the environment', async () => {
+		running = [job({ initiatorUserId: 'u-other' })];
+		dialog();
+		expect(await screen.findByRole('button', { name: 'Choose Archive' })).toBeInTheDocument();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(screen.queryByRole('progressbar')).toBeNull();
+	});
+
+	it('opens the stack whose deploy did not start, without Try Again', async () => {
+		running = [job()];
+		importJob = job({
+			state: 'failed',
+			error: {
+				class: 'deploy_failed',
+				message: 'the deploy was refused',
+				recovery: 'Deploy the stack from its page.'
+			}
+		});
+		dialog();
+		expect(
+			await screen.findByText(
+				'cloud was created, but its deploy did not start. Deploy it from its page.'
+			)
+		).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Open Stack' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Try Again' })).toBeNull();
+		expect(screen.queryByText(/stays uploaded/)).toBeNull();
 	});
 });

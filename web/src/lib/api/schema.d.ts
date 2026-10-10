@@ -3819,7 +3819,7 @@ export interface paths {
         put?: never;
         /**
          * Create a stack from an archive
-         * @description Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and deploys the stack when asked. A failure before that removes what the job wrote and forgets the stack; a failed deploy keeps the stack. 501 agent_unsupported for older agents.
+         * @description Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and queues a stack.deploy job when asked (the stack is kept from then on: a deploy that cannot be queued fails the job but undoes nothing). A failure before that removes what the job wrote and forgets the stack. 501 agent_unsupported for older agents.
          */
         post: operations["create-stack-archive-import"];
         delete?: never;
@@ -12270,10 +12270,14 @@ export interface components {
             expiresAt: string;
             /** Format: date-time */
             exportedAt: string;
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
             id: string;
             /** @description The exporting manager's version. */
             managerVersion?: string;
-            /** @description The stack's (Compose project) name at export. */
+            /**
+             * @description The stack's (Compose project) name at export.
+             * @example web
+             */
             name: string;
             notIncluded: components["schemas"]["StackArchiveExclusion"][];
             /** @description The project name a Compose file pins with a top-level name: (the stack must use it). */
@@ -12284,7 +12288,10 @@ export interface components {
             projectEntries: number;
             services: string[];
             sha256: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @example 52428800
+             */
             size: number;
             volumes: components["schemas"]["StackArchiveVolumeInfo"][];
         };
@@ -12302,7 +12309,10 @@ export interface components {
             description?: string;
             /** @description Default: the archive's. */
             displayName?: string;
-            /** @description The environment the stack is created in. */
+            /**
+             * @description The environment the stack is created in.
+             * @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70
+             */
             environmentId: string;
             /**
              * @description The new stack's Compose project name (and folder). Volumes named after the project follow it.
@@ -12313,9 +12323,12 @@ export interface components {
         StackArchiveImportPreview: {
             /** @description No blockers: the stack can be created. */
             allowed: boolean;
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
             archiveId: string;
             blockers: components["schemas"]["MigrationFinding"][];
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70 */
             environmentId: string;
+            /** @example shop */
             name: string;
             /** Format: int64 */
             projectBytes: number;
@@ -12337,10 +12350,17 @@ export interface components {
         StackArchiveImportVolume: {
             /** Format: int64 */
             bytes: number;
+            /** @example data */
             key: string;
-            /** @description Its name for the new stack. */
+            /**
+             * @description Its name for the new stack.
+             * @example shop_data
+             */
             name: string;
-            /** @description Its name in the archive. */
+            /**
+             * @description Its name in the archive.
+             * @example web_data
+             */
             source: string;
         };
         StackArchiveVolume: {
@@ -12352,8 +12372,12 @@ export interface components {
             excluded?: boolean;
             /** @description Its data goes into the archive. */
             included: boolean;
-            /** @description Compose volume key. */
+            /**
+             * @description Compose volume key.
+             * @example data
+             */
             key: string;
+            /** @example web_data */
             name: string;
             /** @description The caller may not download the volume's files (volume.files.download): it must be left out. */
             notPermitted?: boolean;
@@ -12367,8 +12391,12 @@ export interface components {
             bytes: number;
             /** Format: int64 */
             entries: number;
+            /** @example data */
             key: string;
-            /** @description Its name at export. */
+            /**
+             * @description Its name at export.
+             * @example web_data
+             */
             name: string;
         };
         StackBind: {
@@ -12455,11 +12483,17 @@ export interface components {
             type: "stack.created" | "stack.updated" | "stack.removed" | "stack.revision_recorded" | "docker.event";
         };
         StackExportBody: {
-            /** @description Compose keys of named volumes whose data is left out. Default: every plain local named volume is included. */
+            /**
+             * @description Compose keys of named volumes whose data is left out. Default: every plain local named volume is included.
+             * @example [
+             *       "cache"
+             *     ]
+             */
             excludeVolumes?: string[];
             /**
              * Format: int64
              * @description Stop grace period of the stack's containers.
+             * @example 30
              */
             timeoutSeconds?: number;
         };
@@ -12508,6 +12542,7 @@ export interface components {
             projectBytes: number;
             /** @description Services that run: they stop while the archive is written and start again. */
             running: string[];
+            /** @example 0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f */
             stackId: string;
             /** Format: int64 */
             totalBytes: number;
@@ -41324,13 +41359,13 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "sha256": "example",
-                     *       "size": 1,
+                     *       "size": 52428800,
                      *       "volumes": [
                      *         {
                      *           "bytes": 1,
                      *           "entries": 1,
-                     *           "key": "example",
-                     *           "name": "web"
+                     *           "key": "data",
+                     *           "name": "web_data"
                      *         }
                      *       ]
                      *     }
@@ -41473,13 +41508,13 @@ export interface operations {
                      *         "example"
                      *       ],
                      *       "sha256": "example",
-                     *       "size": 1,
+                     *       "size": 52428800,
                      *       "volumes": [
                      *         {
                      *           "bytes": 1,
                      *           "entries": 1,
-                     *           "key": "example",
-                     *           "name": "web"
+                     *           "key": "data",
+                     *           "name": "web_data"
                      *         }
                      *       ]
                      *     }
@@ -41605,7 +41640,7 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
                  *       "name": "web"
                  *     }
                  */
@@ -41631,17 +41666,17 @@ export interface operations {
                      *           "service": "example"
                      *         }
                      *       ],
-                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
-                     *       "name": "web",
+                     *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
+                     *       "name": "shop",
                      *       "projectBytes": 1,
                      *       "stacksFreeBytes": 1,
                      *       "volumeBytes": 1,
                      *       "volumes": [
                      *         {
                      *           "bytes": 1,
-                     *           "key": "example",
-                     *           "name": "web",
-                     *           "source": "example"
+                     *           "key": "data",
+                     *           "name": "shop_data",
+                     *           "source": "web_data"
                      *         }
                      *       ],
                      *       "volumesFreeBytes": 1,
@@ -41758,7 +41793,7 @@ export interface operations {
             content: {
                 /**
                  * @example {
-                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                 *       "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70",
                  *       "name": "web"
                  *     }
                  */
@@ -43832,7 +43867,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "excludeVolumes": [
+                 *         "cache"
+                 *       ],
+                 *       "timeoutSeconds": 30
+                 *     }
+                 */
                 "application/json": components["schemas"]["StackExportBody"];
             };
         };
@@ -43890,8 +43932,8 @@ export interface operations {
                      *           "entries": 1,
                      *           "excluded": false,
                      *           "included": false,
-                     *           "key": "example",
-                     *           "name": "web",
+                     *           "key": "data",
+                     *           "name": "web_data",
                      *           "notPermitted": false,
                      *           "reason": "example",
                      *           "truncated": false
@@ -44008,7 +44050,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "excludeVolumes": [
+                 *         "cache"
+                 *       ],
+                 *       "timeoutSeconds": 30
+                 *     }
+                 */
                 "application/json": components["schemas"]["StackExportBody"];
             };
         };

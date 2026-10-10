@@ -96,9 +96,10 @@ func (s *Service) DropArchiveStack(ctx context.Context, stackID string) error {
 }
 
 // RecordArchiveStack reads a reserved stack's committed files back: the
-// definition must be valid and keep the stack's project name (a top-level
-// name: pins it), and becomes the stack's first (observed) revision with
-// its services. Nothing is deployed.
+// definition must be valid (loaded under the stack's name, as deploys load
+// it; a top-level name: pinning another one is refused before the files
+// are written, from the archive itself) and becomes the stack's first
+// (observed) revision with its services. Nothing is deployed.
 func (s *Service) RecordArchiveStack(ctx context.Context, stackID string, p authz.Principal) (domain.Stack, error) {
 	st, err := store.GetStack(ctx, s.db, stackID)
 	if err != nil {
@@ -110,10 +111,6 @@ func (s *Service) RecordArchiveStack(ctx context.Context, stackID string, p auth
 	}
 	if !v.Valid {
 		return st, invalidDefinition(v)
-	}
-	if v.ProjectName != "" && v.ProjectName != st.Name {
-		return st, &domain.StackError{Code: domain.StackErrInvalidDefinition,
-			Message: "the archive's Compose file sets the project name " + v.ProjectName + " (top-level name:); create the stack under that name"}
 	}
 	var read protocol.ComposeReadOutput
 	if err := s.call(ctx, st.EnvironmentID, protocol.ReqComposeRead, protocol.ComposeReadInput{Stack: Ref(st)}, &read); err != nil {

@@ -38,15 +38,20 @@ the same order still reads.
 `stack.export` (manager executor; locks: host shared, the stack exclusive;
 capability `stack.export`, the job's `prepare` re-checks the other grants):
 
-1. **prepare** — the check again (environment online, agent support, not
-   Docker Manager's own stack, the volumes still included); free space on
-   the manager.
+1. **prepare** — the check again, measuring the data (environment online,
+   agent support, not Docker Manager's own stack, the volumes still
+   included, the limit and the manager's free space); the sizes go into the
+   job's output, never its input, so a retried request with the same
+   Idempotency-Key finds the same job.
 2. **stop** — records the running services, registers `start_stack`, then
    `migration.stop` (reverse dependency order). Nothing runs: nothing stops.
 3. **write_archive** — the manifest (from a fresh `migration.preview`), then
    per part `migration.send` read through `transfer.Reader` into the archive
    (`exports/<jobId>.tar.gz.part`, fsync, rename); the agent's part result
-   must match the manager's framing. A lost session or a checksum mismatch
+   must match the manager's framing. The measured size is claimed of the
+   manager's free space while the archive is written (uploads claim theirs
+   too, so concurrent transfers never overcommit the disk the database
+   lives on). A lost session or a checksum mismatch
    writes the whole archive again (3 attempts; a lost agent is awaited for
    2 minutes). Progress by bytes against the measured size.
 4. **start** — `migration.start` with the recorded services; releases the
@@ -68,7 +73,10 @@ day; the download is a ranged file response.
    `uploads/<id>.tar.gz.part` while `inspect` reads it through a pipe
    (manifest, every part re-encoded to nowhere, sizes, the root Compose
    files for a pinned `name:`); invalid archives are deleted, valid ones get
-   a sidecar and live a day. At most five per user.
+   a sidecar and live a day. At most five per user, uploads in progress
+   included; an archive may unpack to at most 100 times its size (at least
+   the archive limit). A body that ends early is `upload_incomplete`, never
+   taken for a complete archive.
 2. **Check** (`create-stack-archive-import-preview`, pure `evaluateImport`
    over the agent's `migration.preview` destination facts): the new name
    (taken, a running Compose project, pinned by the archive), the folder,
@@ -89,16 +97,19 @@ the new volumes exclusive; capability `stack.create`, `prepare` re-checks
 3. **commit** — `migration.commit` into `<stacks>/<name>` (never an
    existing directory).
 4. **check_definition** — `compose.validate` and `compose.read` of the
-   committed files under the new name: the first (observed) revision, the
-   services; a definition that pins another name fails here, before any
-   volume exists.
+   committed files under the new name (the agent loads them under it, as
+   deploys do): the first (observed) revision, the services. A top-level
+   `name:` pinning another name is caught earlier, from the archive itself
+   (`PinnedName` at upload, the check's `project_name_pinned` blocker).
 5. **transfer_volumes** — each volume through `migration.receive` with
    `compose: {stack, key}`: the agent creates it exactly as Compose would for
    the new stack (name, labels, configuration hash) and fills it.
 6. **deploy** — from here the stack keeps its files (`keep`: the
-   compensation is released, the staging directory removed); a
-   `stack.deploy` job when asked, awaited. A failed deploy fails the job
-   but keeps the stack.
+   compensation is released first, then `kept` is recorded, then the staging
+   directory removed); when asked, a `stack.deploy` job is queued (idempotency
+   key `archive-<jobId>`) and **not awaited**: it needs the stack's lock,
+   which this job holds until it ends. A deploy that cannot be queued fails
+   the job but keeps the stack.
 7. **finalize**.
 
 A failure before `keep` removes the committed directory and the volumes the

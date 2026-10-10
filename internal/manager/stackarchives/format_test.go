@@ -196,7 +196,7 @@ func rawArchive(t *testing.T, gz bool, m *Manifest, ms ...member) []byte {
 
 // readAll reads every part of an archive to nowhere.
 func readAll(b []byte) error {
-	_, err := inspect(bytes.NewReader(b))
+	_, err := inspect(bytes.NewReader(b), 1<<30)
 	return err
 }
 
@@ -211,7 +211,7 @@ func TestReaderAcceptsToolArchives(t *testing.T) {
 		member{name: "./volumes/", typ: tar.TypeDir, mode: 0o755},
 		member{name: "./volumes/dbdata/", typ: tar.TypeDir, mode: 0o700},
 		member{name: "./volumes/dbdata/PG_VERSION", typ: tar.TypeReg, mode: 0o600, data: "17\n"})
-	u, err := inspect(bytes.NewReader(b))
+	u, err := inspect(bytes.NewReader(b), 1<<30)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,6 +271,16 @@ func TestReaderRefuses(t *testing.T) {
 		big := member{name: ManifestName, typ: tar.TypeReg, mode: 0o644, data: strings.Repeat(" ", MaxManifest+1)}
 		if err := readAll(rawArchive(t, true, nil, big)); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("decompression bomb", func(t *testing.T) {
+		b := writeArchive(t, testManifest(), map[Part][]byte{{}: transferTar(t, projectPart...), {Volume: "dbdata"}: transferTar(t, volumePart...)},
+			Part{}, Part{Volume: "dbdata"})
+		if _, err := inspect(bytes.NewReader(b), 40); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("err = %v", err)
+		}
+		if _, err := inspect(bytes.NewReader(b), 41); err != nil {
+			t.Fatalf("at the limit: %v", err)
 		}
 	})
 	t.Run("truncated", func(t *testing.T) {

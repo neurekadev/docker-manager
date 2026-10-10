@@ -17,9 +17,11 @@ import {
 	importBlocker,
 	importBody,
 	importKey,
+	importOutcome,
 	includeChoice,
 	limitRelevant,
 	notPermittedKeys,
+	ownJob,
 	renamedVolumes,
 	type StackArchiveVolume
 } from './archives';
@@ -228,5 +230,30 @@ describe('blockers', () => {
 		expect(importBlocker({ ...c, preview: { allowed: false, blockers: [] } })).toBe(
 			'The stack cannot be created now.'
 		);
+	});
+});
+
+describe('import jobs', () => {
+	it('tells a created stack, one whose deploy was refused and a failure apart', () => {
+		expect(importOutcome({ state: 'succeeded' })).toBe('created');
+		expect(importOutcome({ state: 'failed', error: { class: 'deploy_failed' } })).toBe(
+			'deploy_failed'
+		);
+		expect(importOutcome({ state: 'failed', error: { class: 'transfer_failed' } })).toBe(
+			'failed'
+		);
+		expect(importOutcome({ state: 'interrupted' })).toBe('failed');
+	});
+
+	it('resumes only the caller’s own running import', () => {
+		const jobs = [
+			{ id: 'j1', initiatorUserId: 'u-other' },
+			{ id: 'j2', initiatorUserId: 'u-me' },
+			{ id: 'j3', initiatorUserId: 'u-me' }
+		];
+		expect(ownJob(jobs, 'u-me')?.id).toBe('j2');
+		expect(ownJob(jobs, 'u-me', new Set(['j2']))?.id).toBe('j3');
+		expect(ownJob(jobs, undefined)).toBeUndefined();
+		expect(ownJob([{ id: 'j1' }], 'u-me')).toBeUndefined();
 	});
 });

@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -59,8 +60,8 @@ type StackArchiveService interface {
 // StackArchiveVolume is a named volume of a stack and what an export does
 // with it.
 type StackArchiveVolume struct {
-	Key          string `json:"key" doc:"Compose volume key."`
-	Name         string `json:"name"`
+	Key          string `json:"key" example:"data" doc:"Compose volume key."`
+	Name         string `json:"name" example:"web_data"`
 	Included     bool   `json:"included" doc:"Its data goes into the archive."`
 	Excluded     bool   `json:"excluded,omitempty" doc:"Left out by the request (excludeVolumes)."`
 	NotPermitted bool   `json:"notPermitted,omitempty" doc:"The caller may not download the volume's files (volume.files.download): it must be left out."`
@@ -91,7 +92,7 @@ type StackExportFile struct {
 
 // StackExportPreview is an export's check, computed before anything stops.
 type StackExportPreview struct {
-	StackID          string                  `json:"stackId"`
+	StackID          string                  `json:"stackId" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"`
 	Allowed          bool                    `json:"allowed" doc:"No blockers: the export can start."`
 	Blockers         []MigrationFinding      `json:"blockers"`
 	Warnings         []MigrationFinding      `json:"warnings"`
@@ -138,8 +139,8 @@ func newExportPreview(p stackarchives.ExportPlan) StackExportPreview {
 
 // StackExportBody selects what an export includes.
 type StackExportBody struct {
-	ExcludeVolumes []string `json:"excludeVolumes,omitempty" maxItems:"64" doc:"Compose keys of named volumes whose data is left out. Default: every plain local named volume is included."`
-	TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" doc:"Stop grace period of the stack's containers."`
+	ExcludeVolumes []string `json:"excludeVolumes,omitempty" maxItems:"64" example:"[\"cache\"]" doc:"Compose keys of named volumes whose data is left out. Default: every plain local named volume is included."`
+	TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"3600" example:"30" doc:"Stop grace period of the stack's containers."`
 }
 
 type stackExportPreviewInput struct {
@@ -163,22 +164,22 @@ type stackExportPreviewOutput struct{ Body StackExportPreview }
 
 // StackArchiveVolumeInfo is a volume an archive holds.
 type StackArchiveVolumeInfo struct {
-	Key     string `json:"key"`
-	Name    string `json:"name" doc:"Its name at export."`
+	Key     string `json:"key" example:"data"`
+	Name    string `json:"name" example:"web_data" doc:"Its name at export."`
 	Bytes   int64  `json:"bytes"`
 	Entries int64  `json:"entries"`
 }
 
 // StackArchive is an uploaded archive.
 type StackArchive struct {
-	ID             string                   `json:"id"`
-	Size           int64                    `json:"size"`
+	ID             string                   `json:"id" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"`
+	Size           int64                    `json:"size" example:"52428800"`
 	SHA256         string                   `json:"sha256"`
 	CreatedAt      time.Time                `json:"createdAt"`
 	ExpiresAt      time.Time                `json:"expiresAt" doc:"An unused upload is removed then."`
 	ExportedAt     time.Time                `json:"exportedAt"`
 	ManagerVersion string                   `json:"managerVersion,omitempty" doc:"The exporting manager's version."`
-	Name           string                   `json:"name" doc:"The stack's (Compose project) name at export."`
+	Name           string                   `json:"name" example:"web" doc:"The stack's (Compose project) name at export."`
 	DisplayName    string                   `json:"displayName,omitempty"`
 	Description    string                   `json:"description,omitempty"`
 	PinnedName     string                   `json:"pinnedName,omitempty" doc:"The project name a Compose file pins with a top-level name: (the stack must use it)."`
@@ -218,7 +219,7 @@ type stackArchivePath struct {
 // StackArchiveImportBody chooses where and how a stack is created from an
 // archive.
 type StackArchiveImportBody struct {
-	EnvironmentID string `json:"environmentId" minLength:"1" maxLength:"64" doc:"The environment the stack is created in."`
+	EnvironmentID string `json:"environmentId" minLength:"1" maxLength:"64" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70" doc:"The environment the stack is created in."`
 	Name          string `json:"name" minLength:"1" maxLength:"63" example:"web" doc:"The new stack's Compose project name (and folder). Volumes named after the project follow it."`
 	DisplayName   string `json:"displayName,omitempty" maxLength:"128" doc:"Default: the archive's."`
 	Description   string `json:"description,omitempty" maxLength:"1024" doc:"Default: the archive's."`
@@ -243,18 +244,18 @@ type stackArchiveImportInput struct {
 
 // StackArchiveImportVolume is a volume the new stack gets.
 type StackArchiveImportVolume struct {
-	Key    string `json:"key"`
-	Source string `json:"source" doc:"Its name in the archive."`
-	Name   string `json:"name" doc:"Its name for the new stack."`
+	Key    string `json:"key" example:"data"`
+	Source string `json:"source" example:"web_data" doc:"Its name in the archive."`
+	Name   string `json:"name" example:"shop_data" doc:"Its name for the new stack."`
 	Bytes  int64  `json:"bytes"`
 }
 
 // StackArchiveImportPreview checks creating a stack from an archive before
 // anything is written.
 type StackArchiveImportPreview struct {
-	ArchiveID        string                     `json:"archiveId"`
-	EnvironmentID    string                     `json:"environmentId"`
-	Name             string                     `json:"name"`
+	ArchiveID        string                     `json:"archiveId" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f"`
+	EnvironmentID    string                     `json:"environmentId" example:"0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e70"`
+	Name             string                     `json:"name" example:"shop"`
 	Allowed          bool                       `json:"allowed" doc:"No blockers: the stack can be created."`
 	Blockers         []MigrationFinding         `json:"blockers"`
 	Warnings         []MigrationFinding         `json:"warnings"`
@@ -357,9 +358,14 @@ func (h *stackArchivesAPI) previewExport(ctx context.Context, in *stackExportPre
 	if err != nil {
 		return nil, err
 	}
-	plan, err := h.svc.PreviewExport(ctx, st, stackarchives.ExportRequest{ExcludeVolumes: in.Body.ExcludeVolumes, MayDownload: mayDownload(c, st)})
+	may := mayDownload(c, st)
+	plan, err := h.svc.PreviewExport(ctx, st, stackarchives.ExportRequest{ExcludeVolumes: in.Body.ExcludeVolumes, MayDownload: may})
 	if err != nil {
 		return nil, archiveErr(err)
+	}
+	// Only an archive the caller may download (its volumes) is offered.
+	if plan.Latest != nil && slices.ContainsFunc(plan.Latest.VolumeNames, func(v string) bool { return !may(v) }) {
+		plan.Latest = nil
 	}
 	return &stackExportPreviewOutput{Body: newExportPreview(plan)}, nil
 }
@@ -671,8 +677,9 @@ func registerStackArchives(a huma.API, deps Deps) {
 		Description: "Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is " +
 			"created at once (the job's target, undeployed); the job copies the project folder into a new folder of the " +
 			"environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as " +
-			"Compose would for the new stack and fills it, and deploys the stack when asked. A failure before that removes what " +
-			"the job wrote and forgets the stack; a failed deploy keeps the stack. 501 agent_unsupported for older agents.",
+			"Compose would for the new stack and fills it, and queues a stack.deploy job when asked (the stack is kept from then on: " +
+			"a deploy that cannot be queued fails the job but undoes nothing). A failure before that removes what the job wrote and " +
+			"forgets the stack. 501 agent_unsupported for older agents.",
 		Tags: []string{tagStacks}, Errors: append(errs, http.StatusNotImplemented),
 	}, Capability: CapStackCreate, Scope: ScopeEnvironment, Idempotency: IdempotencyStored}, h.startImport)
 }

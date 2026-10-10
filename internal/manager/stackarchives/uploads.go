@@ -106,6 +106,9 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 	if size > s.opts.MaxSize {
 		return Upload{}, fmt.Errorf("%w (%s)", ErrUploadTooLarge, humanize.Bytes(s.opts.MaxSize))
 	}
+	id := ids.New()
+	// Uploads in progress count toward the user's limit, and their size is
+	// claimed of the free space until they end.
 	s.mu.Lock()
 	n := 0
 	for _, u := range s.uploads {
@@ -113,14 +116,27 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 			n++
 		}
 	}
-	s.mu.Unlock()
+	for _, owner := range s.pending {
+		if owner == p.UserID {
+			n++
+		}
+	}
 	if n >= MaxUploadsPerUser {
+		s.mu.Unlock()
 		return Upload{}, ErrTooManyUploads
 	}
-	if free := s.opts.FreeBytes(s.uploadsDir()); free >= 0 && size+spaceMargin > free {
-		return Upload{}, fmt.Errorf("%w (%s free)", ErrNoSpace, humanize.Bytes(free))
+	s.pending[id] = p.UserID
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.pending, id)
+		s.mu.Unlock()
+	}()
+	release, err := s.reserve(s.uploadsDir(), size)
+	if err != nil {
+		return Upload{}, err
 	}
-	id := ids.New()
+	defer release()
 	part := s.uploadPath(id) + partSuffix
 	f, err := os.OpenFile(part, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -140,7 +156,7 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 	}
 	done := make(chan result, 1)
 	go func() {
-		u, err := inspect(pr)
+		u, err := inspect(pr, max(size*maxRatio, s.opts.MaxSize))
 		if err != nil {
 			_ = pr.CloseWithError(err)
 		} else {
@@ -149,19 +165,32 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 		done <- result{u, err}
 	}()
 	h := sha256.New()
-	written, cerr := io.Copy(io.MultiWriter(f, h, pw), io.LimitReader(body, size))
-	_ = pw.Close()
+	src := &readErr{r: io.LimitReader(body, size)}
+	dst := &writeErr{w: f}
+	written, cerr := io.Copy(io.MultiWriter(dst, h, pw), src)
+	// Short: the body ended early (a write error stopped the copy
+	// otherwise: the disk, or the validator refusing the archive).
+	short := src.err != nil || (cerr == nil && written != size)
+	if dst.err != nil {
+		_ = pw.CloseWithError(dst.err)
+		<-done
+		return Upload{}, dst.err
+	}
+	if short {
+		// The client went away: the validator must not take the cut-off
+		// archive for a complete one.
+		_ = pw.CloseWithError(ErrUploadIncomplete)
+	} else {
+		_ = pw.Close()
+	}
 	res := <-done
 	switch {
+	case short && ctx.Err() != nil:
+		return Upload{}, ctx.Err()
+	case short:
+		return Upload{}, ErrUploadIncomplete
 	case res.err != nil:
 		return Upload{}, res.err
-	case cerr != nil:
-		if ctx.Err() != nil {
-			return Upload{}, ctx.Err()
-		}
-		return Upload{}, fmt.Errorf("%w: %w", ErrUploadIncomplete, cerr)
-	case written != size:
-		return Upload{}, ErrUploadIncomplete
 	}
 	if err := f.Sync(); err != nil {
 		return Upload{}, err
@@ -191,12 +220,47 @@ func (s *Service) StoreUpload(ctx context.Context, p authz.Principal, size int64
 	return u, nil
 }
 
-// inspect reads a whole archive and measures its parts.
-func inspect(r io.Reader) (Upload, error) {
+// maxRatio bounds what an upload unpacks to: this many times its size
+// (at least the archive limit), against decompression bombs.
+const maxRatio = 100
+
+// readErr remembers the error of the request body (a client that went
+// away), apart from errors writing the copy.
+type readErr struct {
+	r   io.Reader
+	err error
+}
+
+func (e *readErr) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) {
+		e.err = err
+	}
+	return n, err
+}
+
+// writeErr remembers the error of writing the upload's file.
+type writeErr struct {
+	w   io.Writer
+	err error
+}
+
+func (e *writeErr) Write(p []byte) (int, error) {
+	n, err := e.w.Write(p)
+	if err != nil {
+		e.err = err
+	}
+	return n, err
+}
+
+// inspect reads a whole archive and measures its parts; limit bounds the
+// bytes of their files.
+func inspect(r io.Reader, limit int64) (Upload, error) {
 	rd, err := NewReader(r)
 	if err != nil {
 		return Upload{}, err
 	}
+	rd.Limit = limit
 	u := Upload{Manifest: rd.Manifest(), Volumes: map[string]PartStats{}}
 	for {
 		p, err := rd.Next()

@@ -174,9 +174,8 @@ or another Docker Manager.
 3. Press **Export Archive**.
 
 The stack stops while the archive is written, then starts again. The
-download starts when the export is done. If you closed the dialog, use
-**Download Archive** in the message that appears, or open **Export
-Archive** again.
+download starts when the export is done. If you closed the dialog, open
+**Export Archive** again and press **Download Archive**.
 
 <Callout type="warn">
   The archive holds your `.env` values and your volumes' data. Keep it
@@ -201,9 +200,11 @@ Good to know:
 - Archives stay on the manager for one day, then they are removed.
 - Archives can be up to 10 GB. Change the limit with
   `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB` (see [Configuration](/configuration)).
-- Not in the archive: external volumes, volumes with driver options,
-  anonymous volumes, folders mounted from outside the stack's folder, and
-  images. Images are pulled or built when the stack is deployed.
+- Only plain local volumes are in the archive. Not in it: external
+  volumes, volumes with driver options or another driver, anonymous
+  volumes, folders mounted from outside the stack's folder, and images. The
+  dialog lists what is left out. Images are pulled or built when the stack
+  is deployed.
 - If `compose.yaml` sets `name:` at the top, the new stack must use that
   name.
 

@@ -319,12 +319,23 @@ func (s *Service) StartImport(ctx context.Context, p authz.Principal, archiveID 
 	if err != nil {
 		return domain.Stack{}, domain.Job{}, err
 	}
+	// One stack per upload at a time: claimed before anything else, given
+	// back unless a job takes it over.
 	s.mu.Lock()
 	_, used := s.inUse[archiveID]
+	if !used {
+		s.inUse[archiveID] = ""
+	}
 	s.mu.Unlock()
 	if used {
 		return domain.Stack{}, domain.Job{}, ErrUploadInUse
 	}
+	queued := false
+	defer func() {
+		if !queued {
+			s.release(archiveID)
+		}
+	}()
 	plan, err := s.previewImport(ctx, u, r, "")
 	if err != nil {
 		return domain.Stack{}, domain.Job{}, err
@@ -355,12 +366,12 @@ func (s *Service) StartImport(ctx context.Context, p authz.Principal, archiveID 
 	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: jobspec.StackImportArchive, Principal: p, EnvironmentID: r.EnvironmentID,
 		Targets: targets, Input: in})
 	if err != nil {
-		s.release(archiveID)
 		if derr := s.opts.Stacks.DropArchiveStack(ctx, st.ID); derr != nil {
 			s.log.Error("stack archive import: forget the stack after a refused job", "stack_id", st.ID, "error", derr)
 		}
 		return domain.Stack{}, domain.Job{}, err
 	}
+	queued = true
 	if cur, err := s.opts.Stacks.AttachArchiveJob(ctx, st.ID, j); err == nil {
 		st = cur
 	} else if !errors.Is(err, domain.ErrStackNotFound) {
@@ -735,14 +746,17 @@ func (s *Service) importVolumes(ctx context.Context, sc *jobexec.StepContext) er
 }
 
 // keep marks the stack's files as kept: from now on nothing is undone.
+// The compensation is released first: a crash in between leaves files
+// behind for a forgotten stack (removed by hand, or the next import of the
+// name fails on the folder), never a kept stack without its files.
 func (s *Service) keep(ctx context.Context, sc *jobexec.StepContext, env string) error {
 	if readImportOutput(sc.Output()).Kept {
 		return nil
 	}
-	if err := writeImportOutput(ctx, sc, func(o *importOutput) { o.Kept = true }); err != nil {
+	if err := sc.ReleaseCompensation(ctx, jobspec.CompRemoveArchiveImport); err != nil {
 		return err
 	}
-	if err := sc.ReleaseCompensation(ctx, jobspec.CompRemoveArchiveImport); err != nil {
+	if err := writeImportOutput(ctx, sc, func(o *importOutput) { o.Kept = true }); err != nil {
 		return err
 	}
 	var co protocol.MigrationCleanupOutput
@@ -765,40 +779,24 @@ func (s *Service) importDeploy(ctx context.Context, sc *jobexec.StepContext) err
 	if err := s.keep(ctx, sc, st.EnvironmentID); err != nil {
 		return err
 	}
-	if !in.Deploy {
+	if !in.Deploy || readImportOutput(sc.Output()).DeployJobID != "" {
 		return nil
 	}
-	jobID := readImportOutput(sc.Output()).DeployJobID
-	if jobID == "" {
-		j, err := s.opts.Jobs.Get(ctx, sc.JobID)
-		if err != nil {
-			return err
-		}
-		sc.Progress(ctx, 92, "deploying "+st.Name)
-		dj, err := s.opts.Stacks.Deploy(ctx, principalOf(j), st, domain.StackJobRequest{IdempotencyKey: "archive-" + sc.JobID},
-			domain.StackDeployOptions{Pull: "missing"})
-		if err != nil {
-			return &classed{class: ClassDeployFailed, err: fmt.Errorf("start the deploy: %w", err),
-				recovery: "The stack and its volumes were created; deploy it from its page."}
-		}
-		jobID = dj.ID
-		if err := writeImportOutput(ctx, sc, func(o *importOutput) { o.DeployJobID = jobID }); err != nil {
-			return err
-		}
-	}
-	dj, err := s.waitJob(ctx, jobID)
+	// The deploy is its own job, queued and not awaited: it needs this
+	// stack's lock, which this job holds until it ends.
+	j, err := s.opts.Jobs.Get(ctx, sc.JobID)
 	if err != nil {
 		return err
 	}
-	if dj.State != domain.JobSucceeded {
-		msg := string(dj.State)
-		if dj.ErrorClass != "" {
-			msg += " (" + dj.ErrorClass + ")"
-		}
-		return &classed{class: ClassDeployFailed, err: fmt.Errorf("the deploy (job %s) ended %s", jobID, msg),
-			recovery: "The stack and its volumes were created. See the deploy job for the cause, then deploy the stack again."}
+	sc.Progress(ctx, 95, "queuing the deploy of "+st.Name)
+	dj, err := s.opts.Stacks.Deploy(ctx, principalOf(j), st, domain.StackJobRequest{IdempotencyKey: "archive-" + sc.JobID},
+		domain.StackDeployOptions{Pull: "missing"})
+	if err != nil {
+		return &classed{class: ClassDeployFailed, err: fmt.Errorf("start the deploy: %w", err),
+			recovery: "The stack and its volumes were created; deploy it from its page."}
 	}
-	return nil
+	sc.Item(ctx, "deploy", domain.ItemSucceeded, "deploy queued as job "+dj.ID)
+	return writeImportOutput(ctx, sc, func(o *importOutput) { o.DeployJobID = dj.ID })
 }
 
 func (s *Service) importFinalize(ctx context.Context, sc *jobexec.StepContext) error {

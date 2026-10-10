@@ -34,7 +34,9 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
 - An import's stack record exists from the request on (the job's target);
   until `keep` (before the deploy) every failure runs `remove_archive_import`
   and the finish hook forgets the stack (`stacks.Service.ForgetArchiveStack`);
-  after it nothing is undone, a failed deploy included.
+  after it nothing is undone. Release the compensation before recording
+  `kept`. The deploy is queued as its own `stack.deploy` job and never
+  awaited: it needs the stack's lock, which the import holds.
 - Archives hold `.env` values and volume data: an export needs
   `stack.export` plus `stack.files.download`, `stack.definition.read` and
   `volume.files.download` on each included volume, checked at the API and
@@ -48,5 +50,9 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
   files are removed at start, and `Sweep` removes exports and unused uploads
   after `Retention` (a day). Size limit: `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB`
   (`config.Config.StackArchiveMax`), for the data an export writes and for an
-  upload's `Content-Length`. Relays share the migrations' bandwidth cap
+  upload's `Content-Length`. Writes claim their size of the free space
+  (`Service.reserve`) until they end; uploads in progress count toward the
+  per-user limit; an upload unpacks to at most `maxRatio` times its size.
+  Job inputs hold no measured sizes (idempotent retries). Relays share the
+  migrations' bandwidth cap
   (`migrations.Service.Limiter`).

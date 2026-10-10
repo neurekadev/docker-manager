@@ -35,6 +35,7 @@ import (
 
 	"github.com/neurekadev/docker-manager/internal/clock"
 	"github.com/neurekadev/docker-manager/internal/domain"
+	"github.com/neurekadev/docker-manager/internal/humanize"
 	"github.com/neurekadev/docker-manager/internal/jobexec"
 	"github.com/neurekadev/docker-manager/internal/jobspec"
 	"github.com/neurekadev/docker-manager/internal/manager/authz"
@@ -63,7 +64,6 @@ type Jobs interface {
 	Enqueue(ctx context.Context, req jobs.Request) (domain.Job, bool, error)
 	Get(ctx context.Context, id string) (domain.Job, error)
 	List(ctx context.Context, f domain.JobFilter) ([]domain.Job, error)
-	Subscribe(jobID string) (<-chan struct{}, func())
 	OnFinish(kind domain.JobKind, h jobs.FinishHook)
 	RegisterManagerExecutor(x jobexec.Executor) error
 }
@@ -134,7 +134,11 @@ type Service struct {
 
 	mu      sync.Mutex
 	uploads map[string]*Upload // by ID
-	inUse   map[string]string  // upload ID -> import job ID
+	inUse   map[string]string  // upload ID -> the stack created from it
+	// pending are the uploads being written (ID -> owner); reserved the
+	// bytes uploads and exports being written claim of the free space.
+	pending  map[string]string
+	reserved int64
 }
 
 // New creates the service, its directories, and registers the executors
@@ -174,7 +178,7 @@ func New(o Options) (*Service, error) {
 	}
 	o.Authorizer = authz.OrDenyAll(o.Authorizer)
 	s := &Service{opts: o, clk: o.Clock, log: o.Logger.With("component", "stackarchives"),
-		uploads: map[string]*Upload{}, inUse: map[string]string{}}
+		uploads: map[string]*Upload{}, inUse: map[string]string{}, pending: map[string]string{}}
 	for _, d := range []string{s.exportsDir(), s.uploadsDir()} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return nil, fmt.Errorf("stackarchives: %w", err)
@@ -265,6 +269,39 @@ func (s *Service) Sweep() {
 	for _, id := range expired {
 		s.removeUpload(id)
 	}
+}
+
+// free is dir's free space less what writes in progress claimed (-1
+// unknown).
+func (s *Service) free(dir string) int64 {
+	f := s.opts.FreeBytes(dir)
+	if f < 0 {
+		return f
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return max(f-s.reserved, 0)
+}
+
+// reserve claims n bytes of dir's free space (keeping spaceMargin free)
+// until release; concurrent uploads and exports cannot overcommit the
+// disk the database lives on.
+func (s *Service) reserve(dir string, n int64) (func(), error) {
+	f := s.opts.FreeBytes(dir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if f >= 0 && s.reserved+n+spaceMargin > f {
+		return nil, fmt.Errorf("%w (%s free, %s claimed by other transfers)", ErrNoSpace, humanize.Bytes(f), humanize.Bytes(s.reserved))
+	}
+	s.reserved += n
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			s.mu.Lock()
+			s.reserved -= n
+			s.mu.Unlock()
+		})
+	}, nil
 }
 
 // call sends a request and decodes its output.
@@ -394,26 +431,6 @@ func agentFailure(err error, class, recovery string) error {
 			recovery: "The environment's agent is unavailable. " + recovery}
 	}
 	return &classed{class: class, err: fmt.Errorf("the agent: %w", err), recovery: recovery}
-}
-
-// waitJob waits until a job is terminal.
-func (s *Service) waitJob(ctx context.Context, id string) (domain.Job, error) {
-	ch, cancel := s.opts.Jobs.Subscribe(id)
-	defer cancel()
-	for {
-		j, err := s.opts.Jobs.Get(ctx, id)
-		if err != nil {
-			return j, err
-		}
-		if j.State.Terminal() {
-			return j, nil
-		}
-		select {
-		case <-ch:
-		case <-ctx.Done():
-			return j, ctx.Err()
-		}
-	}
 }
 
 // limited applies the bandwidth cap to reads.

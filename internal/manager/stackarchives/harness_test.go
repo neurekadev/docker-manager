@@ -228,6 +228,7 @@ type fakeStacks struct {
 	jobs       *fakeJobs
 	protected  map[string]bool
 	recordErr  error
+	deployErr  error
 	recorded   []string
 	forgotten  []string
 	deploys    int
@@ -266,7 +267,11 @@ func (f *fakeStacks) Protection(_ context.Context, st domain.Stack) (*protocol.P
 func (f *fakeStacks) Deploy(_ context.Context, _ authz.Principal, st domain.Stack, r domain.StackJobRequest, _ domain.StackDeployOptions) (domain.Job, error) {
 	f.mu.Lock()
 	f.deploys++
+	err := f.deployErr
 	f.mu.Unlock()
+	if err != nil {
+		return domain.Job{}, err
+	}
 	f.jobs.mu.Lock()
 	id, outcome := f.jobs.newID(), f.jobs.deployOutcome
 	f.jobs.mu.Unlock()
@@ -477,7 +482,8 @@ func tree(e *migrationtest.Env, dir string) map[string]migrationtest.Snapshot {
 	for k, v := range out {
 		v.ATime = time.Time{}
 		if v.Type == "symlink" {
-			v.MTime = time.Time{} // os.Root has no lutimes
+			// os.Root has no lutimes, and a symlink's mode is not kept.
+			v.MTime, v.Mode = time.Time{}, 0
 		}
 		out[k] = v
 	}

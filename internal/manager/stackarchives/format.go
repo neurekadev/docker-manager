@@ -333,6 +333,10 @@ type Reader struct {
 	eof      bool
 	// compose holds the project's root Compose files read on the way.
 	compose map[string][]byte
+	// Limit bounds the bytes of the archive's files (0: none); total
+	// counts them.
+	Limit int64
+	total int64
 }
 
 // Compose files read from the project's root (definition checks).
@@ -531,6 +535,9 @@ func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 		}
 		st.Entries++
 		if out.Typeflag == tar.TypeReg {
+			if r.total += hdr.Size; r.Limit > 0 && r.total > r.Limit {
+				return st, invalidf("the archive unpacks to more than %d bytes", r.Limit)
+			}
 			var src io.Reader = r.tr
 			var buf *bytes.Buffer
 			if r.wantsCompose(p, inner, hdr.Size) {

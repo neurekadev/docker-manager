@@ -4,7 +4,7 @@
 // sends, the check's result in one line, the newest archive in words, and
 // for creating: the default name, the request body and the volumes whose
 // names change with the stack's. Pure; tested in archives.spec.ts.
-import type { Schema } from '$lib/api/client';
+import type { Job, Schema } from '$lib/api/client';
 import { formatBytes, formatDateTime } from '$lib/ui/format';
 import { asSentence } from './importing';
 import { count } from './migration';
@@ -209,4 +209,27 @@ export function importBlocker(
 	if (!c.environment.online)
 		return `${c.environment.name} is offline. Create the stack when it is back.`;
 	return checkBlocker(c, 'created');
+}
+
+/**
+ * How a finished import ended: the stack was created (a deploy asked for
+ * runs as a job of its own), created but its deploy was refused
+ * (`deploy_failed`: the stack and its volumes are kept, the upload is
+ * gone), or nothing was kept (the upload stays for another try).
+ */
+export function importOutcome(
+	job: Pick<Job, 'state'> & { error?: Pick<NonNullable<Job['error']>, 'class'> }
+): 'created' | 'deploy_failed' | 'failed' {
+	if (job.state === 'succeeded') return 'created';
+	return job.error?.class === 'deploy_failed' ? 'deploy_failed' : 'failed';
+}
+
+/** The caller's own running job (never another user's in the same environment). */
+export function ownJob<J extends Pick<Job, 'id' | 'initiatorUserId'>>(
+	jobs: readonly J[],
+	userId: string | undefined,
+	skip: ReadonlySet<string> = new Set()
+): J | undefined {
+	if (!userId) return undefined;
+	return jobs.find((j) => j.initiatorUserId === userId && !skip.has(j.id));
 }
