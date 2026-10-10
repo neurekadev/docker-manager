@@ -143,6 +143,9 @@ type PartStats struct {
 	Bytes   int64 `json:"bytes"`
 }
 
+// maxQuery is the agents' bound of a migration.preview destination query.
+const maxQuery = 4096
+
 // ErrInvalid wraps every reason an archive is refused.
 var ErrInvalid = errors.New("not a valid stack archive")
 
@@ -178,6 +181,12 @@ func (m Manifest) Validate() error {
 			}
 			seen[f] = true
 		}
+	}
+	// The check of an import asks the destination about every name the
+	// stack creates, in one request the agents bound.
+	q := destinationQuery(m, nil, m.Stack.Name)
+	if len(q.Volumes)+len(q.Networks)+len(q.ContainerNames)+len(q.Ports)+len(q.Images) > maxQuery {
+		return invalidf("the stack creates more than %d containers, ports, volumes, networks and images together", maxQuery)
 	}
 	keys, names := map[string]bool{}, map[string]bool{}
 	for _, v := range m.Volumes {
@@ -578,6 +587,11 @@ func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 		default:
 			out.Name = inner
 		}
+		if sparse(hdr) {
+			// archive/tar fills a sparse file's holes itself: they would
+			// escape every bound. The agents' transfer never writes them.
+			return st, invalidf("%s is a sparse file", r.pendName)
+		}
 		switch hdr.Typeflag {
 		case tar.TypeDir, tar.TypeSymlink, tar.TypeFifo:
 		case tar.TypeReg, tar.TypeRegA: //nolint:staticcheck // TypeRegA from older tools
@@ -631,6 +645,19 @@ func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 		}
 	}
 	return st, tw.Close()
+}
+
+// sparse reports a GNU or PAX sparse member.
+func sparse(h *tar.Header) bool {
+	if h.Typeflag == tar.TypeGNUSparse {
+		return true
+	}
+	for k := range h.PAXRecords {
+		if strings.HasPrefix(k, "GNU.sparse.") {
+			return true
+		}
+	}
+	return false
 }
 
 // invalidOrWrite marks errors reading the archive as invalid archives and

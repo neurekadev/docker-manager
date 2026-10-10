@@ -255,6 +255,7 @@ func TestReaderRefuses(t *testing.T) {
 		"own label":           {bad(func(m *Manifest) { m.Volumes[0].Labels = map[string]string{"docker-manager.migration": "x"} }), nil},
 		"not following":       {bad(func(m *Manifest) { m.Volumes[0].Name = "other" }), nil},
 		"definition file":     {bad(func(m *Manifest) { m.Stack.ConfigFiles = []string{"../compose.yaml"} }), nil},
+		"too many names":      {bad(func(m *Manifest) { m.Services = []ManifestService{{Name: "web", ContainerNames: make([]string, 4097)}} }), nil},
 		"repeated file":       {bad(func(m *Manifest) { m.Stack.ConfigFiles = []string{"a.yaml", "a.yaml"} }), nil},
 		"too many files":      {bad(func(m *Manifest) { m.Stack.ConfigFiles = strings.Split("a b c d e f g h i j k l m n o p q", " ") }), nil},
 	}
@@ -393,6 +394,20 @@ func mustJSON(t *testing.T, v any) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+func TestSparseMembersAreRefused(t *testing.T) {
+	for _, h := range []*tar.Header{
+		{Typeflag: tar.TypeGNUSparse, Name: "a"},
+		{Typeflag: tar.TypeReg, Name: "a", PAXRecords: map[string]string{"GNU.sparse.major": "1", "GNU.sparse.minor": "0"}},
+	} {
+		if !sparse(h) {
+			t.Errorf("%+v not seen as sparse", h)
+		}
+	}
+	if sparse(&tar.Header{Typeflag: tar.TypeReg, Name: "a", PAXRecords: map[string]string{"atime": "1"}}) {
+		t.Error("a plain file seen as sparse")
+	}
 }
 
 func TestPinnedName(t *testing.T) {

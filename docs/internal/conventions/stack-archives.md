@@ -17,9 +17,15 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
   modes, links, ordering, bounds and refusals). The reader keeps no
   per-member state (millions of files cost no memory): bound it by members
   (`MaxEntries`), file bytes and the whole decompressed stream
-  (`NewLimitedReader`), never by a set of names. Lists in the manifest are
-  bounded and their entries unique (`Manifest.Validate`); resolve default
-  Compose files exactly as the agent does (`compose.configFiles`).
+  (`NewLimitedReader`), never by a set of names; sparse members are
+  refused (their holes would escape the bounds). `Manifest.Validate` bounds
+  every list (volumes, services, networks, exclusions, Compose and env
+  files, and the names one check asks the destination about: the agents'
+  4096) and refuses repeated volume keys, volume names and definition
+  files; an export's check validates the manifest it would write, so no
+  export produces an archive an upload refuses. Resolve default Compose
+  files exactly as the agent does (`compose.configFiles`). An import sends
+  its parts through one open reader (`archiveCursor`), in archive order.
 - Archive bytes never reach an agent unverified: an upload is validated
   while it is written (`inspect`), and every part an import sends is
   re-encoded by `Reader.WriteTo` (names below the part, hard links to

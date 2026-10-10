@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -308,5 +309,52 @@ func TestStackArchiveImportNeedsDestination(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("the replayed start ran %d times", n)
+	}
+}
+
+// pagedAgents pages environments like the real service (the shared fake
+// returns them all).
+type pagedAgents struct {
+	*fakeAgents
+	pages int
+}
+
+func (p *pagedAgents) ListEnvironments(ctx context.Context, flt domain.EnvironmentFilter) ([]domain.Environment, error) {
+	all, err := p.fakeAgents.ListEnvironments(ctx, flt)
+	p.pages++
+	if flt.Limit > 0 && len(all) > flt.Limit {
+		all = all[:flt.Limit]
+	}
+	return all, err
+}
+
+// TestStackArchiveUploadPagesEnvironments: stack.create in any
+// environment allows an upload, beyond the first page of environments.
+func TestStackArchiveUploadPagesEnvironments(t *testing.T) {
+	agents := &pagedAgents{fakeAgents: newFakeAgents()}
+	for i := range 1200 {
+		id := fmt.Sprintf("env-%04d", i)
+		agents.envs[id] = domain.Environment{ID: id, Name: id, Status: domain.EnvironmentActive}
+	}
+	pol := authztest.New().User("creator", "allow stack.create @env:env-1100")
+	arch := &fakeArchives{maxSize: 1 << 20, upload: stackarchives.Upload{ID: "a1"}}
+	mux := http.NewServeMux()
+	New(mux, Deps{Stacks: newFakeStacks(), StackArchives: arch, Agents: agents, Authorizer: pol, Clock: testutil.FakeClock()})
+	h := authztest.Authenticate(withTestContext(t, mux, ""))
+	if rec := rawUpload(t, h, "creator", "", []byte("x")); rec.Code != http.StatusCreated || agents.pages != 3 {
+		t.Fatalf("upload %d after %d pages: %s", rec.Code, agents.pages, rec.Body)
+	}
+}
+
+// TestIdleReaderClearsTheDeadline: every read renews the deadline, and the
+// end of the body clears it.
+func TestIdleReaderClearsTheDeadline(t *testing.T) {
+	var deadlines []time.Time
+	r := &idleReader{r: strings.NewReader("abc"), deadline: func(d time.Time) error { deadlines = append(deadlines, d); return nil }}
+	if b, err := io.ReadAll(r); err != nil || string(b) != "abc" {
+		t.Fatalf("read %q, %v", b, err)
+	}
+	if len(deadlines) < 2 || deadlines[0].IsZero() || !deadlines[len(deadlines)-1].IsZero() {
+		t.Fatalf("deadlines %v", deadlines)
 	}
 }

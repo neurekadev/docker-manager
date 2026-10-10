@@ -531,9 +531,9 @@ func (s *Service) importPrepare(ctx context.Context, sc *jobexec.StepContext) er
 
 // receivePart streams one part of the upload to the agent
 // (migration.receive), retrying it from the start after a lost session.
-func (s *Service) receivePart(ctx context.Context, sc *jobexec.StepContext, env, archiveID string, p Part, in protocol.MigrationReceiveInput) error {
+func (s *Service) receivePart(ctx context.Context, sc *jobexec.StepContext, env string, c *archiveCursor, p Part, in protocol.MigrationReceiveInput) error {
 	for attempt := 1; ; attempt++ {
-		st, err := s.receiveOnce(ctx, sc.JobID, env, archiveID, p, in)
+		st, err := s.receiveOnce(ctx, sc.JobID, env, c, p, in)
 		if err == nil {
 			sc.Item(ctx, p.Name(), domain.ItemSucceeded, fmt.Sprintf("%d entries, %s", st.Entries, humanize.Bytes(st.Bytes)))
 			return nil
@@ -568,27 +568,70 @@ type writeFunc func([]byte) (int, error)
 
 func (f writeFunc) Write(b []byte) (int, error) { return f(b) }
 
-func (s *Service) receiveOnce(ctx context.Context, jobID, env, archiveID string, p Part, in protocol.MigrationReceiveInput) (PartStats, error) {
-	rd, closeFile, err := s.openUpload(archiveID)
-	if err != nil {
-		return PartStats{}, err
+// archiveCursor keeps an upload's archive open between the parts a step
+// sends in archive order: each part is decompressed once, not again for
+// every later part. A part already passed, or any failure, opens the
+// archive anew.
+type archiveCursor struct {
+	s      *Service
+	id     string
+	rd     *Reader
+	close  func()
+	passed map[Part]bool
+}
+
+func (s *Service) cursor(archiveID string) *archiveCursor { return &archiveCursor{s: s, id: archiveID} }
+
+// seek positions the archive at part p.
+func (c *archiveCursor) seek(p Part) (*Reader, error) {
+	if c.rd != nil && c.passed[p] {
+		c.reset()
 	}
-	defer closeFile()
-	for {
-		cur, err := rd.Next()
+	if c.rd == nil {
+		rd, closeFile, err := c.s.openUpload(c.id)
 		if err != nil {
+			return nil, err
+		}
+		c.rd, c.close, c.passed = rd, closeFile, map[Part]bool{}
+	}
+	for {
+		cur, err := c.rd.Next()
+		if err != nil {
+			c.reset()
 			if errors.Is(err, io.EOF) {
 				err = fmt.Errorf("%w: %s is missing", ErrInvalid, p.Name())
 			}
-			return PartStats{}, err
+			return nil, err
 		}
+		c.passed[cur] = true
 		if cur == p {
-			break
+			return c.rd, nil
 		}
-		if _, err := rd.WriteTo(cur, io.Discard); err != nil {
-			return PartStats{}, err
+		if _, err := c.rd.WriteTo(cur, io.Discard); err != nil {
+			c.reset()
+			return nil, err
 		}
 	}
+}
+
+// reset closes the archive.
+func (c *archiveCursor) reset() {
+	if c.close != nil {
+		c.close()
+	}
+	c.rd, c.close, c.passed = nil, nil, nil
+}
+
+func (s *Service) receiveOnce(ctx context.Context, jobID, env string, c *archiveCursor, p Part, in protocol.MigrationReceiveInput) (ps PartStats, err error) {
+	rd, err := c.seek(p)
+	if err != nil {
+		return PartStats{}, err
+	}
+	defer func() {
+		if err != nil {
+			c.reset() // the reader stopped inside the part
+		}
+	}()
 	pctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	st, err := s.opts.Agents.OpenStream(pctx, env, protocol.StreamMigrationReceive, in, streammux.OpenOptions{JobID: jobID})
@@ -601,7 +644,7 @@ func (s *Service) receiveOnce(ctx context.Context, jobID, env, archiveID string,
 		}
 		return st.Write(b)
 	}), 0)
-	ps, err := rd.WriteTo(p, fw)
+	ps, err = rd.WriteTo(p, fw)
 	if err == nil {
 		err = fw.Close()
 	}
@@ -660,7 +703,9 @@ func (s *Service) importProject(ctx context.Context, sc *jobexec.StepContext) er
 		return err
 	}
 	sc.Progress(ctx, 10, "copying the project folder")
-	if err := s.receivePart(ctx, sc, st.EnvironmentID, in.ArchiveID, Part{},
+	c := s.cursor(in.ArchiveID)
+	defer c.reset()
+	if err := s.receivePart(ctx, sc, st.EnvironmentID, c, Part{},
 		protocol.MigrationReceiveInput{MigrationID: sc.JobID, Part: protocol.PartProject}); err != nil {
 		return err
 	}
@@ -792,6 +837,8 @@ func (s *Service) importVolumes(ctx context.Context, sc *jobexec.StepContext) er
 		return err
 	}
 	ref := stackRef(st)
+	c := s.cursor(in.ArchiveID)
+	defer c.reset()
 	for i, v := range in.Volumes {
 		if n := names[v.Key]; n != "" {
 			v.Name = n
@@ -810,7 +857,7 @@ func (s *Service) importVolumes(ctx context.Context, sc *jobexec.StepContext) er
 		sc.Progress(ctx, 40+50*i/len(in.Volumes), "copying volume "+v.Name)
 		spec := protocol.MigrationVolumeSpec{Name: v.Name, Labels: mv.Labels,
 			Compose: &protocol.MigrationComposeVolume{Stack: ref, Key: v.Key}}
-		if err := s.receivePart(ctx, sc, st.EnvironmentID, in.ArchiveID, p,
+		if err := s.receivePart(ctx, sc, st.EnvironmentID, c, p,
 			protocol.MigrationReceiveInput{MigrationID: sc.JobID, Part: protocol.PartVolume, Volume: &spec}); err != nil {
 			return err
 		}

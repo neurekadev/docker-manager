@@ -62,6 +62,8 @@ The check (`create-stack-export-preview`) lists the named volumes: included
 are plain local volumes that exist; external volumes, Docker Manager's own,
 not yet created, with driver options or another driver, and those the caller
 may not download are not (the last block the export until left out). It
+also validates the manifest the export would write, so an archive an
+upload would refuse is never written (`not_exportable`). It
 sizes the data against `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB` and the
 manager's free space, estimates the downtime (10 s plus the data at 50 MB/s)
 and returns the newest archive still available. Archives are kept for a
@@ -118,7 +120,8 @@ the new volumes exclusive; capability `stack.create`, `prepare` re-checks
    (a name `<old project>_<key>` follows the new name), decide where the
    data goes; one that differs must not exist yet, and the cleanup covers
    it.
-5. **transfer_volumes** — each volume through `migration.receive` with
+5. **transfer_volumes** (one open archive reader for all parts, in
+   archive order; a retry opens it again) — each volume through `migration.receive` with
    `compose: {stack, key}`: the agent creates it exactly as Compose would for
    the new stack (name, labels, configuration hash) and fills it.
 6. **deploy** — from here the stack keeps its files (`keep`: the

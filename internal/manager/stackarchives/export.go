@@ -36,6 +36,7 @@ const (
 	FindingArchiveTooLarge    = "archive_too_large"
 	FindingManagerSpace       = "manager_space"
 	FindingVolumeNotPermitted = "volume_not_permitted"
+	FindingNotExportable      = "not_exportable"
 )
 
 // assumedRate estimates the copy speed for the downtime (bytes/s).
@@ -206,7 +207,27 @@ func (s *Service) previewExport(ctx context.Context, st domain.Stack, r ExportRe
 		return plan, nil, agentErr(err)
 	}
 	evaluateExport(&plan, facts, r)
+	// An archive an upload would refuse is refused here, before the stack
+	// stops (more volumes or labels than an archive holds, ...).
+	if err := s.manifest(st, facts, exportInputOf(st, plan, 0), exportSizes{}).Validate(); err != nil {
+		plan.Blockers = append(plan.Blockers, migrations.Finding{Code: FindingNotExportable,
+			Message: "the stack cannot be written as an archive: " + strings.TrimPrefix(err.Error(), ErrInvalid.Error()+": ")})
+	}
 	return plan, facts, nil
+}
+
+// exportInputOf is the job input of exporting plan's included volumes.
+func exportInputOf(st domain.Stack, plan ExportPlan, timeout int) exportInput {
+	in := exportInput{StackID: st.ID, TimeoutSeconds: timeout}
+	for _, v := range plan.Volumes {
+		switch {
+		case v.Included:
+			in.Volumes = append(in.Volumes, exportVolume{Key: v.Key, Name: v.Name, FollowsProject: v.FollowsProject, Labels: v.Labels})
+		case v.Excluded:
+			in.Excluded = append(in.Excluded, v.Key)
+		}
+	}
+	return in
 }
 
 // evaluateExport fills a plan from the project's facts (pure).
@@ -364,15 +385,7 @@ func (s *Service) StartExport(ctx context.Context, p authz.Principal, st domain.
 	if !plan.Allowed() {
 		return domain.Job{}, &BlockedError{Blockers: plan.Blockers}
 	}
-	in := exportInput{StackID: st.ID, TimeoutSeconds: r.TimeoutSeconds}
-	for _, v := range plan.Volumes {
-		switch {
-		case v.Included:
-			in.Volumes = append(in.Volumes, exportVolume{Key: v.Key, Name: v.Name, FollowsProject: v.FollowsProject, Labels: v.Labels})
-		case v.Excluded:
-			in.Excluded = append(in.Excluded, v.Key)
-		}
-	}
+	in := exportInputOf(st, plan, r.TimeoutSeconds)
 	j, _, err := s.opts.Jobs.Enqueue(ctx, jobs.Request{Kind: jobspec.StackExport, Principal: p, EnvironmentID: st.EnvironmentID,
 		Targets: []domain.JobTarget{{Type: domain.TargetStack, ID: st.ID}}, Input: in, IdempotencyKey: r.IdempotencyKey})
 	if err != nil {
