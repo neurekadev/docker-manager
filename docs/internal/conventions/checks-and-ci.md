@@ -29,6 +29,11 @@ dispatch only (no pull-request trigger); it also builds the images and,
 from `main`, publishes `ghcr.io/neurekadev/docker-{manager,agent}:edge`.
 Images are linux/amd64 and linux/arm64, each built on its native runner
 (`ubuntu-24.04`, `ubuntu-24.04-arm`; never QEMU).
+CI's Go is pinned to the `toolchain` line of `go.mod` (`go-version` in
+every `actions/setup-go` step of `CI.yaml`), the same Go as the image
+builder (`GO_IMAGE` in `deploy/docker/*.Dockerfile`): a Go patch release
+never changes CI on its own (Go 1.27.2 broke golangci-lint v2.13.2, #311).
+Move the three together.
 The only tests are isolated unit tests (see [tests.md](tests.md)); nothing starts
 Docker, containers, browsers, real registries or restic.
 
