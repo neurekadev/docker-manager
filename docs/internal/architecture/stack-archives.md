@@ -45,7 +45,9 @@ capability `stack.export`, the job's `prepare` re-checks the other grants):
    Idempotency-Key finds the same job.
 2. **stop** — records the running services, registers `start_stack`, then
    `migration.stop` (reverse dependency order). Nothing runs: nothing stops.
-3. **write_archive** — the manifest (from a fresh `migration.preview`), then
+3. **write_archive** — the manifest (from a fresh `migration.preview`,
+   validated again: a definition changed since the check into one an upload
+   would refuse fails with `not_exportable` before anything is written), then
    per part `migration.send` read through `transfer.Reader` into the archive
    (`exports/<jobId>.tar.gz.part`, fsync, rename); the agent's part result
    must match the manager's framing. The measured size is claimed of the
