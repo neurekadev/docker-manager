@@ -720,6 +720,11 @@ func (s *Service) writeArchive(ctx context.Context, sc *jobexec.StepContext, st 
 		return nil, err
 	}
 	now := s.now()
+	// The sweep expires archives by their modification time on the
+	// service's clock.
+	if err := os.Chtimes(final, now, now); err != nil {
+		return nil, err
+	}
 	keys := make([]string, 0, len(in.Volumes))
 	for _, v := range in.Volumes {
 		keys = append(keys, v.Key)

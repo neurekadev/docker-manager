@@ -519,7 +519,16 @@ And `stack.rename`
 `compose.rename_preview` and execute `stack.rename` (a `stack.*` input with
 `rename`: the new project name and directory; result output `rename`, with
 `switched` once the stack lives under the new name); the manager refuses a
-rename for other agents. And `stack.pull` (`protocol.FeatureStackPull`):
+rename for other agents. And `migration.compose_volume`
+(`protocol.FeatureMigrationComposeVolume`, #313): only those agents get
+`migration.receive` volume parts whose `volume` carries `compose`
+(`{stack, key}`: a project already in the stacks volume and a Compose
+volume key); they load that project under its name and create the volume
+with the name, labels and configuration hash Compose gives it there (the
+part's `labels` add only labels Compose does not set), refusing a name that
+differs (`conflict`) and volumes with another driver or driver options
+(`unsupported_request`). The manager refuses a stack creation from an
+archive for other agents. And `stack.pull` (`protocol.FeatureStackPull`):
 only those agents execute `stack.pull` (pull a stack's images, change no
 container; result output `pulled`: the services whose tag now names
 another image); the manager refuses a pull-only request for other agents.
@@ -836,6 +845,14 @@ memory, nothing on disk), optionally rate-limited
   `dev.neureka.docker-manager.migration=<id>` counts too); extraction refuses
   escaping names, members below symlinks or files, hard links to anything
   but earlier regular files and device nodes.
+- **Stack archives (#313)** use the same streams with one agent: a
+  `stack.export` job reads the `project` and `volume` parts with
+  `migration.send` into an archive file on the manager (the manager's
+  verified framing must match the source's result), and a
+  `stack.import_archive` job writes them from an uploaded archive with
+  `migration.receive` (the manager frames them itself, like a template),
+  then `migration.commit`s the project directory before the volumes, which
+  it sends with `volume.compose`.
 - `migration.cleanup` removes the staging directory and, unless
   `finished`, the committed directory, the project's containers whose
   working directory is that directory, and the volumes labeled with the
@@ -1286,8 +1303,8 @@ Implemented by `internal/agent/observe` (agent) and `internal/manager/observe`
 | `files.download` | stream | agent_to_manager | `stack.files.download` / `volume.files.download` | #15 |
 | `files.upload` | stream | manager_to_agent | `stack.files.write` / `volume.files.write` | #15 |
 | `backup.file` | stream | agent_to_manager | `backup.contents.download` | #10 |
-| `migration.send` | stream | agent_to_manager | job-linked (`stack.migrate` / `volume.migrate`) | #35 |
-| `migration.receive` | stream | manager_to_agent | job-linked (`stack.migrate` / `volume.migrate`); also a stack's creation from a template (the manager writes the version's tar itself, then `migration.commit` / `migration.cleanup`) | #35 |
+| `migration.send` | stream | agent_to_manager | job-linked (`stack.migrate` / `volume.migrate` / `stack.export`) | #35 |
+| `migration.receive` | stream | manager_to_agent | job-linked (`stack.migrate` / `volume.migrate` / `stack.import_archive`); also a stack's creation from a template (the manager writes the version's tar itself, then `migration.commit` / `migration.cleanup`) | #35 |
 
 `container.exec` runs a process **inside a container** through the Engine
 exec API with the argv the user supplied (or the container's own shell the

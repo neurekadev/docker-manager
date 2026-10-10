@@ -74,7 +74,8 @@ agent.
 | `DOCKER_MANAGER_TEMPLATE_MAX_SIZE_MB` | `32` | The largest template, in MB (`1` to `1024`). |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_ENABLED` | `true` | Set to `false` to stop sharing your public templates. |
 | `DOCKER_MANAGER_TEMPLATE_REGISTRY_SYNC_INTERVAL` | `30m` | How often template sources are read again (at least `5m`; `0` turns it off). |
-| `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of migrations, for example `50MB` (per second, at least `1KiB`). |
+| `DOCKER_MANAGER_MIGRATION_BANDWIDTH_LIMIT` | `0` (no limit) | Limit the speed of migrations, for example `50MB` (per second, at least `1KiB`). Stack archives use the same limit. |
+| `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB` | `10240` (10 GB) | The largest stack archive you can export or upload, in MB (`1` to `1048576`). Your reverse proxy must allow uploads this large. |
 
 ### History and monitoring
 

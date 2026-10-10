@@ -25,6 +25,8 @@ the [route inventory](../../../api/route-inventory.yaml) is listed here
 | `GET /template-registry/templates/{templateId}/icon` | `get-template-registry-icon` | image response (public) | #7 |
 | `GET /template-registry/templates/{templateId}/versions/{version}/archive` | `download-template-registry-archive` | tar.gz response (public) | #7 |
 | `GET /backups/{backupId}/contents/download` | `download-backup-content` | binary response | #10 |
+| `GET /stacks/{stackId}/exports/{exportId}` | `download-stack-export` | tar.gz response | #313 |
+| `POST /stack-archives` | `create-stack-archive` | binary request | #313 |
 | `GET /audit/exports` | `export-audit-events` | NDJSON/CSV response | #30 |
 | `GET /system/metrics` | `get-system-metrics` | Prometheus text response | #34 |
 | `GET /support-bundle` | `get-support-bundle` | zip response | #34 |
@@ -517,6 +519,27 @@ appear in responses. Details and the other file routes:
 **Backup content** `GET /backups/{backupId}/contents/download?path=…` streams
 one file from a snapshot like a single-file download (`backup.contents.download`;
 snapshot contents can hold secrets).
+
+## Stack archives (`download-stack-export`, `create-stack-archive`, #313)
+
+- **Download** `GET /stacks/{stackId}/exports/{exportId}` streams a finished
+  export's file from the manager's data directory (not from an agent):
+  `application/gzip`, `Content-Disposition` with `<stack>-<yyyy-mm-dd>.tar.gz`,
+  `Content-Length`, `ETag` (the archive's SHA-256), `Accept-Ranges: bytes`
+  and a single `Range` (206, or 416 with `Content-Range: bytes */<size>`).
+  404 once the archive expired (a day after the export). A failure
+  mid-stream aborts the connection. Audited (`stack.export`); it needs
+  what the export needed (`stack.export`, `stack.files.download`,
+  `stack.definition.read`).
+- **Upload** `POST /stack-archives` takes the archive as the raw body
+  (`application/octet-stream` or `application/gzip`; 415 otherwise,
+  411 without `Content-Length`, 413 above
+  `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB`). The manager writes it to its data
+  directory while validating it (manifest first, the parts in order, member
+  names and types; 422 `invalid_stack_archive` keeps nothing) and answers 201
+  with what the archive holds; a short body is 400 `upload_incomplete`. No
+  Idempotency-Key (the body is never buffered). The proxy's body limit must
+  allow the archive's size.
 
 ## Audit export (`export-audit-events`)
 

@@ -13,7 +13,9 @@ Guide: `docs/internal/architecture/stacks.md`. Manager: `internal/manager/stacks
   original) or a creation from a template (`CreateFromTemplate`, which
   streams the version's tar through `migration.receive` into the stacks
   volume's staging area and `migration.commit`s it into a new directory,
-  never an existing one); deploys and updates only read and report the
+  never an existing one) or a creation from a stack archive
+  (`stack.import_archive`, the same way, its volumes created as Compose
+  would for the new stack; [stack-archives.md](stack-archives.md)); deploys and updates only read and report the
   bytes they used (`protocol.StackJobOutput.Sources`).
 - Links of stacks and templates (`domain.Link`, documentation, website,
   repository) are display metadata like the description: check them only

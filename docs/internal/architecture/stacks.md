@@ -585,6 +585,14 @@ changes; the UI then offers Deploy instead of Start.
 
 ## For other workstreams
 
+- **#313 stack archives** ([stack-archives.md](stack-archives.md)): a
+  stack created from an archive is reserved (`ReserveArchiveStack`,
+  undeployed, origin `created`, its configured Compose and env files from
+  the archive), gets its job (`AttachArchiveJob`), and once its files are
+  committed `RecordArchiveStack` validates them under its name and records
+  them as its first (observed, `external`) revision with its services; a job
+  that did not keep the files forgets it (`ForgetArchiveStack`).
+  `CheckArchiveName` refuses taken names and running Compose projects.
 - **#15 file manager** (wired in `app`: `Files().SetStacks(stacks,
   stacks)`): `StackFileRoot` resolves a stack scope to its absolute project
   directory (the stacks volume path the agent reported in its capabilities,

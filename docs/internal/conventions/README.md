@@ -32,6 +32,7 @@ follows [checks-and-ci.md](checks-and-ci.md) and the "Always" rules in
 | Schedules | `internal/cron`, `internal/manager/scheduler`, policy owners | [scheduler.md](scheduler.md) |
 | Prune | `internal/manager/maintenance`, `internal/agent/prune` | [maintenance.md](maintenance.md) |
 | Moving stacks between environments | `internal/manager/migrations`, `internal/agent/migration`, `internal/transfer` | [environment-migration.md](environment-migration.md) |
+| Stack archives (export, create a stack from an archive) | `internal/manager/stackarchives`, `api/stack_archives.go`, `stacks/archive.go`, `MigrationVolumeSpec.Compose` | [stack-archives.md](stack-archives.md) |
 | Image updates | `internal/manager/updates`, `internal/agent/stacks/update.go` | [updates.md](updates.md) |
 | Backups and restores | `internal/restic`, `internal/backup`, `internal/manager/backups`, `internal/agent/backups` | [backups.md](backups.md) |
 | Moving the manager to a new server | `internal/manager/managermove`, `internal/manager/movelock`, the move lock in `api`, `jobs`, `scheduler`, `agents`, `web/src/lib/features/managermove` | [manager-move.md](manager-move.md) |
