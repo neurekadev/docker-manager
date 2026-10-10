@@ -30,6 +30,7 @@ import (
 	"log/slog"
 	"maps"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -433,7 +434,13 @@ func (s *Service) receive(ctx context.Context, st *streammux.Stream) error {
 		if err != nil {
 			return err
 		}
-		v, err := s.prepareVolume(ctx, eng, in.MigrationID, *in.Volume)
+		spec := *in.Volume
+		if spec.Compose != nil {
+			if spec, err = s.composeVolume(ctx, spec); err != nil {
+				return err
+			}
+		}
+		v, err := s.prepareVolume(ctx, eng, in.MigrationID, spec)
 		if err != nil {
 			return err
 		}
@@ -521,6 +528,48 @@ func clearRoot(fsys FS) error {
 		}
 	}
 	return nil
+}
+
+// composeLabelPrefix marks the labels Compose sets on the volumes it
+// creates (project, key, version, configuration hash).
+const composeLabelPrefix = "com.docker.compose."
+
+// composeVolume resolves a volume named by its Compose key (a stack
+// created from an archive): the project, already in the stacks volume, is
+// loaded under its new name and the volume gets exactly the name, labels
+// and configuration hash Compose gives it there, so the first deploy
+// adopts it unchanged. The labels sent along add only labels Compose does
+// not set (user-set ones, such as backup exclusions). A volume Compose
+// would create with another driver or with driver options is refused: its
+// data does not live in a local volume.
+func (s *Service) composeVolume(ctx context.Context, spec protocol.MigrationVolumeSpec) (protocol.MigrationVolumeSpec, error) {
+	c := spec.Compose
+	pfs, dir, err := s.openProject(c.Stack)
+	if err != nil {
+		return spec, err
+	}
+	defer func() { _ = pfs.Close() }()
+	p, err := compose.LoadProject(ctx, projectSpec(pfs, c.Stack, filepath.FromSlash(dir)))
+	if err != nil {
+		return spec, fail(protocol.CodeInvalidArgument, "the project does not load: %s", err.Error())
+	}
+	vs, err := p.VolumeSpec(c.Key)
+	if err != nil {
+		return spec, fail(protocol.CodeNotFound, "%s", err.Error())
+	}
+	switch {
+	case vs.Name != spec.Name:
+		return spec, fail(protocol.CodeConflict, "Compose names the volume %s %s, not %s", c.Key, vs.Name, spec.Name)
+	case vs.Driver != "local" || len(vs.DriverOpts) > 0:
+		return spec, fail(protocol.CodeUnsupportedRequest, "volume %s has a driver or driver options; only plain local volumes take data", c.Key)
+	}
+	labels := maps.Clone(vs.Labels)
+	for k, v := range spec.Labels {
+		if !strings.HasPrefix(k, composeLabelPrefix) {
+			labels[k] = v
+		}
+	}
+	return protocol.MigrationVolumeSpec{Name: vs.Name, Labels: labels}, nil
 }
 
 // prepareVolume creates the destination volume, or accepts one this

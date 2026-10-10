@@ -52,6 +52,12 @@ const (
 	// StackPull pulls a stack's images without recreating anything: the
 	// next deploy runs them (#20: tags move only on request).
 	StackPull domain.JobKind = "stack.pull"
+	// StackExport writes a stack archive (the project directory and the
+	// selected volumes) to the manager for download (#313).
+	StackExport domain.JobKind = "stack.export"
+	// StackImportArchive creates a stack and its volumes from an uploaded
+	// stack archive (#313).
+	StackImportArchive domain.JobKind = "stack.import_archive"
 
 	VolumeCreate  domain.JobKind = "volume.create"
 	VolumeRemove  domain.JobKind = "volume.remove"
@@ -109,6 +115,11 @@ const (
 	// CompUndoRename moves the volumes and the project directory a
 	// stack.rename moved back to the old name, before the project switched.
 	CompUndoRename = "undo_rename"
+	// CompStartStack starts again what a stack.export stopped.
+	CompStartStack = "start_stack"
+	// CompRemoveArchiveImport removes the project directory and the
+	// volumes a stack.import_archive wrote, before the stack kept them.
+	CompRemoveArchiveImport = "remove_archive_import"
 )
 
 // Default offline deadlines.
@@ -368,6 +379,39 @@ func catalogSpecs() []Spec {
 				Description: "start again on the source the services of a group's stacks that the migration stopped and did not move"}},
 			OnManagerRestart: RestartInterrupt,
 			UnboundedTargets: true,
+		},
+		// Stack archives (#313): the manager reads the project directory
+		// and the selected volumes from the stack's agent (stopped, so the
+		// copy is consistent) into an archive file in its data directory,
+		// then starts what ran again.
+		{
+			Kind: StackExport, Summary: "Export a stack and its volumes as an archive for download",
+			Capability: "stack.export", Executor: domain.ExecutorManager,
+			Locks: []LockRule{hostShared(), target(domain.LockStack, exclusive, domain.TargetStack)},
+			Steps: []Step{idem("prepare"), idem("stop"), idem("write_archive"), idem("start"),
+				step("finalize", true, false, "")},
+			Compensations: []Compensation{{Name: CompStartStack,
+				Description: "start the services the export stopped, when it stops before starting them again"}},
+			OnManagerRestart: RestartInterrupt,
+		},
+		// A stack created from an uploaded archive: the stack record exists
+		// from the request on (the target); its project directory and
+		// volumes are written through the migration transfer, the definition
+		// is read back, and the stack is deployed when asked. Targets: the
+		// stack and the volumes it creates (lock only; the executor checks
+		// volume.create and stack.deploy).
+		{
+			Kind: StackImportArchive, Summary: "Create a stack and its volumes from a stack archive",
+			Capability: "stack.create", Executor: domain.ExecutorManager,
+			Locks: []LockRule{hostShared(),
+				target(domain.LockStack, exclusive, domain.TargetStack),
+				optional(target(domain.LockVolume, exclusive, domain.TargetVolume))},
+			Steps: []Step{idem("prepare"), idem("transfer_project"), idem("commit"), idem("check_definition"),
+				idem("transfer_volumes"), idem("deploy"), step("finalize", true, false, "")},
+			Compensations: []Compensation{{Name: CompRemoveArchiveImport,
+				Description: "remove the project directory and the volumes the import wrote, while the stack has not kept them"}},
+			OnManagerRestart: RestartInterrupt,
+			LockOnly:         LockOnlyRule{Types: []domain.TargetType{domain.TargetVolume}},
 		},
 		{
 			Kind: StackRemoveSource, Summary: "Remove a migrated stack's containers, volumes and files from its source environment",

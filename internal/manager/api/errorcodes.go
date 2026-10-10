@@ -25,6 +25,7 @@ func ErrorCodes() []ErrorCode {
 	return []ErrorCode{
 		{CodeBadRequest, http.StatusBadRequest, false, "The request is malformed (unparsable JSON, wrong content encoding).", 2},
 		{CodeInvalidCode, http.StatusBadRequest, false, "The one-time code (invitation, password reset or owner recovery) is unknown, expired, revoked or already used. The response never says which.", 16},
+		{CodeUploadIncomplete, http.StatusBadRequest, false, "The upload ended before Content-Length bytes arrived; nothing was kept. Upload the file again.", 313},
 		{CodeUnauthenticated, http.StatusUnauthorized, false, "No valid session cookie or API token; sign in again or send a valid bearer token.", 2},
 		{CodeInvalidCredentials, http.StatusUnauthorized, false, "Sign-in, second factor or step-up failed: unknown account, wrong password or code, disabled account and bad passkey assertions all look alike.", 16},
 		{CodeMoveCodeInvalid, http.StatusUnauthorized, false, "A manager move request is not signed with the move's code, replays a nonce, or names a move that ended (cancelled, expired after seven days); the response never says which. Check DOCKER_MANAGER_MOVE_CODE on the new server.", 35},
@@ -101,6 +102,9 @@ func ErrorCodes() []ErrorCode {
 		{CodeRevisionContentUnavailable, http.StatusConflict, false, "The revision was recorded by hash only (its definition was too large for a deploy result) and cannot be restored.", 7},
 		{CodeStackRenameBlocked, http.StatusConflict, false, "The stack rename's preview has blockers (details lists them: the Compose files set a top-level name:, a target volume or directory exists, a moved volume is used by another project or held, Docker Manager's own project, ...); preview the rename, resolve them and retry.", 7},
 		{CodeMigrationBlocked, http.StatusConflict, false, "The migration's preflight check has blockers (details lists them: platform, name or port conflicts, missing external networks, free space, offline agents, ...); preview the migration, resolve them and retry.", 35},
+		{CodeStackArchiveBlocked, http.StatusConflict, false, "The stack export or the stack creation from an archive has blockers (details lists them: offline environments, Docker Manager's own stack, name, folder, volume or port conflicts, free space, a project name the archive pins, volumes the caller may not download); check again, resolve them and retry.", 313},
+		{CodeStackArchiveInUse, http.StatusConflict, false, "A stack is being created from this uploaded archive; wait for the job to finish.", 313},
+		{CodeTooManyStackArchives, http.StatusConflict, false, "The caller already has five uploaded stack archives waiting; create stacks from them or discard them first.", 313},
 		{CodeMigrationNotCompleted, http.StatusConflict, false, "The source of a stack migration can be removed only after the migration completed.", 35},
 		{CodeMigrationSourceRemoved, http.StatusConflict, false, "The migration's source was already removed.", 35},
 		{CodeMigrationSourceInUse, http.StatusConflict, false, "A Docker Manager stack on the source environment manages the migrated project again (it was imported back); its files are not removed.", 35},
@@ -148,6 +152,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeRecreateRequired, http.StatusUnprocessableEntity, false, "The requested container settings cannot change in place; create a new container (or use a Compose stack). details lists the fields.", 6},
 		{CodeCommandNotFound, http.StatusUnprocessableEntity, false, "The container has none of the requested shell's usual paths (for example a distroless image without sh); choose another shell or command.", 8},
 		{CodeContentDigestMismatch, http.StatusUnprocessableEntity, false, "The uploaded bytes do not match X-Docker-Manager-Content-SHA256; nothing was written.", 15},
+		{CodeStackArchiveInvalid, http.StatusUnprocessableEntity, false, "The uploaded file is not a stack archive Docker Manager can read (a tar.gz written by Export Archive: manifest first, then the project folder and the volumes); the message names the problem. Nothing was kept.", 313},
 		{CodeBackupImportKeyRejected, http.StatusUnprocessableEntity, false, "The Recovery Key does not open the manager repository. Check it for typos; after a rotation also enter the previous key. A lost Recovery Key cannot be recovered: nobody can decrypt the backups.", 24},
 		{CodeBackupImportNotFound, http.StatusUnprocessableEntity, false, "No Docker Manager repository (or no such backup set) at the import destination; check endpoint, bucket, prefix or the mounted path.", 24},
 		{CodeBackupImportManifestCorrupt, http.StatusUnprocessableEntity, false, "The portable manifest of the backup set is damaged (truncated or checksum mismatch); choose another set or check the repository.", 24},
@@ -177,6 +182,7 @@ func ErrorCodes() []ErrorCode {
 		{CodeEnvironmentOffline, http.StatusServiceUnavailable, true, "The environment's agent is not connected; retry when the environment is online again.", 6},
 		{CodeEngineUnavailable, http.StatusServiceUnavailable, true, "The environment's agent is connected but cannot reach its Docker Engine.", 6},
 		{CodeTimeout, http.StatusGatewayTimeout, true, "The operation did not finish within its deadline (also 408 for slow request bodies).", 2},
+		{CodeManagerSpace, http.StatusInsufficientStorage, false, "The manager's data directory has too little free space for the uploaded stack archive; free space there and upload again.", 313},
 	}
 }
 

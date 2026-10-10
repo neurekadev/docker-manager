@@ -69,6 +69,7 @@ import (
 	"github.com/neurekadev/docker-manager/internal/manager/secrets"
 	"github.com/neurekadev/docker-manager/internal/manager/server"
 	"github.com/neurekadev/docker-manager/internal/manager/settings"
+	"github.com/neurekadev/docker-manager/internal/manager/stackarchives"
 	"github.com/neurekadev/docker-manager/internal/manager/stacks"
 	"github.com/neurekadev/docker-manager/internal/manager/store"
 	"github.com/neurekadev/docker-manager/internal/manager/templates"
@@ -184,7 +185,10 @@ type Manager struct {
 	maint     *maintenance.Service
 	// migrations moves stacks and volumes between environments (#35).
 	migrations *envmigrations.Service
-	updates    *updates.Service
+	// archives exports stacks as archives and creates stacks from them
+	// (#313).
+	archives *stackarchives.Service
+	updates  *updates.Service
 	backups    *backups.Service
 	// diag serves the internal metrics and the support bundle (#34).
 	diag *diagnostics.Service
@@ -503,6 +507,17 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 		m.jobs.Close()
 		return nil, err
 	}
+	// Stack archives (#313): the stack.export/stack.import_archive manager
+	// executors (registered before recovery) share the migrations'
+	// bandwidth cap.
+	m.archives, err = stackarchives.New(stackarchives.Options{Clock: opts.Clock, Logger: log.With("component", "stackarchives"),
+		Agents: m.agents.Hub(), Environments: m.agents, Jobs: m.jobs, Stacks: m.stacks, Authorizer: authorizer,
+		Dir: cfg.StackArchiveDir(), MaxSize: cfg.StackArchiveMax, Limiter: m.migrations.Limiter(),
+		ManagerVersion: buildinfo.Get().Version, ReconnectWait: opts.MigrationReconnectWait})
+	if err != nil {
+		m.jobs.Close()
+		return nil, err
+	}
 	if err := m.updates.Register(m.sched); err != nil {
 		m.jobs.Close()
 		return nil, err
@@ -788,6 +803,7 @@ func Start(ctx context.Context, opts Options) (*Manager, error) {
 			Maintenance:              m.maint,
 			Migrations:               m.migrations,
 			EnvironmentMigrations:    m.migrations,
+			StackArchives:            m.archives,
 			Updates:                  m.updates,
 			Backups:                  m.backups,
 			Templates:                m.templates,
@@ -982,6 +998,9 @@ func (m *Manager) Maintenance() *maintenance.Service { return m.maint }
 // Migrations returns the environment migration service (#35).
 func (m *Manager) Migrations() *envmigrations.Service { return m.migrations }
 
+// StackArchives returns the stack archive service (#313).
+func (m *Manager) StackArchives() *stackarchives.Service { return m.archives }
+
 // Updates returns the digest-driven update service (#20).
 func (m *Manager) Updates() *updates.Service { return m.updates }
 
@@ -1053,6 +1072,12 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		defer close(backupsDone)
 		m.backups.Run(engineCtx)
 	}()
+	// Stack archives (#313): expired exports and uploads.
+	archivesDone := make(chan struct{})
+	go func() {
+		defer close(archivesDone)
+		m.archives.Run(engineCtx)
+	}()
 	// Alerts (#159): evaluation and delivery.
 	alertsDone := make(chan struct{})
 	go func() {
@@ -1082,6 +1107,7 @@ func (m *Manager) Serve(ctx context.Context, ln net.Listener) error {
 		<-backupsDone
 		<-movesDone
 		<-alertsDone
+		<-archivesDone
 		<-liveDone
 	}()
 	srv := server.HTTPServer(m.handler, m.opts.Logger)

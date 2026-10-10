@@ -1466,6 +1466,78 @@ routes:
     kind: json
     status: implemented
     notes: 202 + job.
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/export-previews"
+    operationId: create-stack-export-preview
+    capability: stack.export
+    scope: resource
+    owner: 313
+    kind: json
+    status: implemented
+    notes: "Changes nothing (also needs stack.files.download and stack.definition.read)."
+  - method: POST
+    path: "/api/v1/stacks/{stackId}/exports"
+    operationId: create-stack-export
+    capability: stack.export
+    scope: resource
+    owner: 313
+    kind: json
+    status: implemented
+    notes: 202 + job.
+  - method: GET
+    path: "/api/v1/stacks/{stackId}/exports/{exportId}"
+    operationId: download-stack-export
+    capability: stack.export
+    scope: resource
+    owner: 313
+    kind: stream
+    status: implemented
+    notes: "The archive (bounded, Range)."
+  - method: POST
+    path: "/api/v1/stack-archives"
+    operationId: create-stack-archive
+    capability: stack.create
+    scope: instance
+    owner: 313
+    kind: stream
+    status: implemented
+    notes: "Bounded binary upload (stack.create in at least one environment)."
+  - method: GET
+    path: "/api/v1/stack-archives/{archiveId}"
+    operationId: get-stack-archive
+    capability: authenticated
+    scope: none
+    owner: 313
+    kind: json
+    status: implemented
+    notes: The caller's own upload.
+  - method: DELETE
+    path: "/api/v1/stack-archives/{archiveId}"
+    operationId: delete-stack-archive
+    capability: authenticated
+    scope: none
+    owner: 313
+    kind: json
+    status: implemented
+    notes: The caller's own upload.
+  - method: POST
+    path: "/api/v1/stack-archives/{archiveId}/import-previews"
+    operationId: create-stack-archive-import-preview
+    capability: stack.create
+    scope: environment
+    owner: 313
+    kind: json
+    status: implemented
+    notes: Changes nothing.
+  - method: POST
+    path: "/api/v1/stack-archives/{archiveId}/imports"
+    operationId: create-stack-archive-import
+    capability: stack.create
+    scope: environment
+    owner: 313
+    kind: json
+    status: implemented
+    notes: 202 + job.
   - method: GET
     path: "/api/v1/stacks/{stackId}/files"
     operationId: list-stack-files

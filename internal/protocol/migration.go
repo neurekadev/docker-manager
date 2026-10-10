@@ -362,7 +362,25 @@ type MigrationVolumeSpec struct {
 	// Labels to set (the source volume's labels, e.g. Compose's); the
 	// agent adds LabelMigration.
 	Labels map[string]string `json:"labels,omitempty"`
+	// Compose, when set, makes the volume the one Compose would create for
+	// a key of a project already in the stacks volume (a stack created from
+	// an archive, under any project name): the agent loads that project
+	// and creates the volume with Compose's labels and configuration hash
+	// for it (Labels then add only labels Compose does not set). Name must
+	// be the name Compose gives the volume. Sent only to agents announcing
+	// FeatureMigrationComposeVolume.
+	Compose *MigrationComposeVolume `json:"compose,omitempty"`
 }
+
+// MigrationComposeVolume names a project's volume by its Compose key.
+type MigrationComposeVolume struct {
+	Stack ProjectRef `json:"stack"`
+	Key   string     `json:"key"`
+}
+
+// FeatureMigrationComposeVolume is the capabilities feature of agents
+// whose migration.receive honors MigrationVolumeSpec.Compose.
+const FeatureMigrationComposeVolume = "migration.compose_volume"
 
 // MigrationReceiveInput is the input of the migration.receive stream
 // (destination).
@@ -389,6 +407,14 @@ func (in MigrationReceiveInput) Validate() error {
 		}
 		if err := validMigratedLabels(in.Volume.Labels); err != nil {
 			return err
+		}
+		if c := in.Volume.Compose; c != nil {
+			if c.Stack.Root != RootStacks || !ValidProjectName(c.Stack.ProjectName) || !ValidDirName(c.Stack.Dir) {
+				return errors.New("volume part: the Compose project must be a project directory of the stacks volume")
+			}
+			if c.Key == "" || len(c.Key) > 255 || strings.ContainsAny(c.Key, "/\\\x00") {
+				return errors.New("volume part: invalid Compose volume key")
+			}
 		}
 	case PartImage:
 		if len(in.Images) == 0 || len(in.Images) > 64 {

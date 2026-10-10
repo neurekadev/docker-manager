@@ -203,6 +203,17 @@
           "requestId": "4f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60",
           "retryable": true
         }
+      },
+      "Error507": {
+        "description": "The manager's data directory has too little free space for the uploaded stack archive; free space there and upload again.",
+        "summary": "manager_space",
+        "value": {
+          "code": "manager_space",
+          "details": [],
+          "message": "insufficient storage",
+          "requestId": "4f1c2e7a9b0d4c3e8f6a1b2c3d4e5f60",
+          "retryable": false
+        }
       }
     },
     "schemas": {
@@ -17073,6 +17084,330 @@
         ],
         "type": "object"
       },
+      "StackArchive": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "An unused upload is removed then.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "exportedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "managerVersion": {
+            "description": "The exporting manager's version.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The stack's (Compose project) name at export.",
+            "type": "string"
+          },
+          "notIncluded": {
+            "items": {
+              "$ref": "#/components/schemas/StackArchiveExclusion"
+            },
+            "type": "array"
+          },
+          "pinnedName": {
+            "description": "The project name a Compose file pins with a top-level name: (the stack must use it).",
+            "type": "string"
+          },
+          "projectBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "projectEntries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "services": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/StackArchiveVolumeInfo"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "size",
+          "sha256",
+          "createdAt",
+          "expiresAt",
+          "exportedAt",
+          "name",
+          "projectBytes",
+          "projectEntries",
+          "volumes",
+          "notIncluded",
+          "services"
+        ],
+        "type": "object"
+      },
+      "StackArchiveExclusion": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "volume",
+              "anonymous_volume",
+              "bind"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "StackArchiveImportBody": {
+        "additionalProperties": false,
+        "properties": {
+          "deploy": {
+            "description": "Deploy the stack once its files and volumes are in place (also needs stack.deploy).",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Default: the archive's.",
+            "maxLength": 1024,
+            "type": "string"
+          },
+          "displayName": {
+            "description": "Default: the archive's.",
+            "maxLength": 128,
+            "type": "string"
+          },
+          "environmentId": {
+            "description": "The environment the stack is created in.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "The new stack's Compose project name (and folder). Volumes named after the project follow it.",
+            "examples": [
+              "web"
+            ],
+            "maxLength": 63,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "environmentId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "StackArchiveImportPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "description": "No blockers: the stack can be created.",
+            "type": "boolean"
+          },
+          "archiveId": {
+            "type": "string"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationFinding"
+            },
+            "type": "array"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "projectBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stacksFreeBytes": {
+            "description": "Free bytes of the environment's stacks volume (-1: unknown).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "volumeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/StackArchiveImportVolume"
+            },
+            "type": "array"
+          },
+          "volumesFreeBytes": {
+            "description": "Free bytes of its Docker data root (-1: unknown).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationFinding"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "archiveId",
+          "environmentId",
+          "name",
+          "allowed",
+          "blockers",
+          "warnings",
+          "volumes",
+          "projectBytes",
+          "volumeBytes",
+          "stacksFreeBytes",
+          "volumesFreeBytes"
+        ],
+        "type": "object"
+      },
+      "StackArchiveImportVolume": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name for the new stack.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Its name in the archive.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "source",
+          "name",
+          "bytes"
+        ],
+        "type": "object"
+      },
+      "StackArchiveVolume": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "excluded": {
+            "description": "Left out by the request (excludeVolumes).",
+            "type": "boolean"
+          },
+          "included": {
+            "description": "Its data goes into the archive.",
+            "type": "boolean"
+          },
+          "key": {
+            "description": "Compose volume key.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notPermitted": {
+            "description": "The caller may not download the volume's files (volume.files.download): it must be left out.",
+            "type": "boolean"
+          },
+          "reason": {
+            "description": "Why it cannot be included.",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "The size is a lower bound (the scan hit its budget).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "included",
+          "bytes",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "StackArchiveVolumeInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name at export.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "bytes",
+          "entries"
+        ],
+        "type": "object"
+      },
       "StackBind": {
         "additionalProperties": false,
         "properties": {
@@ -17322,6 +17657,169 @@
           "type",
           "stackId",
           "at"
+        ],
+        "type": "object"
+      },
+      "StackExportBody": {
+        "additionalProperties": false,
+        "properties": {
+          "excludeVolumes": {
+            "description": "Compose keys of named volumes whose data is left out. Default: every plain local named volume is included.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "timeoutSeconds": {
+            "description": "Stop grace period of the stack's containers.",
+            "format": "int64",
+            "maximum": 3600,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "StackExportFile": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "The archive is removed from the manager then.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "exportId": {
+            "description": "The stack.export job's ID; download it from GET /stacks/{stackId}/exports/{exportId}.",
+            "type": "string"
+          },
+          "fileName": {
+            "examples": [
+              "web-2026-10-10.tar.gz"
+            ],
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "volumes": {
+            "description": "Compose keys of the included volumes.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "exportId",
+          "fileName",
+          "size",
+          "sha256",
+          "createdAt",
+          "expiresAt",
+          "volumes"
+        ],
+        "type": "object"
+      },
+      "StackExportPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed": {
+            "description": "No blockers: the export can start.",
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationFinding"
+            },
+            "type": "array"
+          },
+          "downtimeSeconds": {
+            "description": "Estimated downtime (0: nothing runs).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/StackExportFile",
+            "description": "The newest archive of the stack still available."
+          },
+          "managerFreeBytes": {
+            "description": "Free space for archives on the manager (-1: unknown).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "maxBytes": {
+            "description": "DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB in bytes.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "notIncluded": {
+            "description": "Anonymous volumes and bind mounts outside the project folder.",
+            "items": {
+              "$ref": "#/components/schemas/StackArchiveExclusion"
+            },
+            "type": "array"
+          },
+          "projectBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "description": "Services that run: they stop while the archive is written and start again.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "stackId": {
+            "type": "string"
+          },
+          "totalBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "volumeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/StackArchiveVolume"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationFinding"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "stackId",
+          "allowed",
+          "blockers",
+          "warnings",
+          "volumes",
+          "notIncluded",
+          "projectBytes",
+          "volumeBytes",
+          "totalBytes",
+          "managerFreeBytes",
+          "maxBytes",
+          "running",
+          "downtimeSeconds"
         ],
         "type": "object"
       },
@@ -63419,6 +63917,993 @@
         "x-docker-manager-scope": "none"
       }
     },
+    "/api/v1/stack-archives": {
+      "post": {
+        "description": "Uploads an archive written by a stack export (raw body, Content-Length required; 413 above DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB). It is stored on the manager and validated on the way (422 invalid_stack_archive), nothing reaches a host. Create a stack from it with POST /stack-archives/{archiveId}/imports within a day; only the uploader sees it. Needs stack.create in at least one environment; at most five uploads per user wait at once (409 too_many_stack_archives); 507 manager_space when the manager's disk is too full. The reverse proxy's body limit must allow the archive's size.",
+        "operationId": "create-stack-archive",
+        "parameters": [
+          {
+            "description": "Required: the archive's size.",
+            "in": "header",
+            "name": "Content-Length",
+            "schema": {
+              "description": "Required: the archive's size.",
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "description": "example",
+                  "displayName": "web",
+                  "expiresAt": "2026-09-25T12:00:00Z",
+                  "exportedAt": "2026-09-25T12:00:00Z",
+                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "managerVersion": "example",
+                  "name": "web",
+                  "notIncluded": [
+                    {
+                      "key": "example",
+                      "kind": "volume",
+                      "name": "web",
+                      "reason": "example"
+                    }
+                  ],
+                  "pinnedName": "web",
+                  "projectBytes": 1,
+                  "projectEntries": 1,
+                  "services": [
+                    "example"
+                  ],
+                  "sha256": "example",
+                  "size": 1,
+                  "volumes": [
+                    {
+                      "bytes": 1,
+                      "entries": 1,
+                      "key": "example",
+                      "name": "web"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StackArchive"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error400"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error411"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Length Required"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error413"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error415"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "507": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error507"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient Storage"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Upload a stack archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.create",
+        "x-docker-manager-capability": "stack.create",
+        "x-docker-manager-scope": "instance"
+      }
+    },
+    "/api/v1/stack-archives/{archiveId}": {
+      "delete": {
+        "description": "Removes the caller's own upload from the manager (409 stack_archive_in_use while a stack is created from it).",
+        "operationId": "delete-stack-archive",
+        "parameters": [
+          {
+            "description": "Uploaded archive ID.",
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "description": "Uploaded archive ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Discard an uploaded stack archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack_archive.delete",
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
+      },
+      "get": {
+        "description": "The caller's own upload: what the archive holds (stack, volumes, what was left out at export).",
+        "operationId": "get-stack-archive",
+        "parameters": [
+          {
+            "description": "Uploaded archive ID.",
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "description": "Uploaded archive ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "description": "example",
+                  "displayName": "web",
+                  "expiresAt": "2026-09-25T12:00:00Z",
+                  "exportedAt": "2026-09-25T12:00:00Z",
+                  "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "managerVersion": "example",
+                  "name": "web",
+                  "notIncluded": [
+                    {
+                      "key": "example",
+                      "kind": "volume",
+                      "name": "web",
+                      "reason": "example"
+                    }
+                  ],
+                  "pinnedName": "web",
+                  "projectBytes": 1,
+                  "projectEntries": 1,
+                  "services": [
+                    "example"
+                  ],
+                  "sha256": "example",
+                  "size": 1,
+                  "volumes": [
+                    {
+                      "bytes": 1,
+                      "entries": 1,
+                      "key": "example",
+                      "name": "web"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StackArchive"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Get an uploaded stack archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-capability": "authenticated",
+        "x-docker-manager-scope": "none"
+      }
+    },
+    "/api/v1/stack-archives/{archiveId}/import-previews": {
+      "post": {
+        "description": "Checks the environment before anything is written: the stack name and Compose project, the folder, containers, volumes and networks the stack would create (names that follow the project follow the new name), published ports, external networks and volumes, free space, a project name pinned by the Compose file, and images built on the source. Needs stack.create in the environment, volume.create when the archive has volumes and stack.deploy to deploy. Changes nothing.",
+        "operationId": "create-stack-archive-import-preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "name": "web"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StackArchiveImportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "allowed": false,
+                  "archiveId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "blockers": [
+                    {
+                      "code": "example",
+                      "message": "example",
+                      "resource": "example",
+                      "service": "example"
+                    }
+                  ],
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "name": "web",
+                  "projectBytes": 1,
+                  "stacksFreeBytes": 1,
+                  "volumeBytes": 1,
+                  "volumes": [
+                    {
+                      "bytes": 1,
+                      "key": "example",
+                      "name": "web",
+                      "source": "example"
+                    }
+                  ],
+                  "volumesFreeBytes": 1,
+                  "warnings": [
+                    {
+                      "code": "example",
+                      "message": "example",
+                      "resource": "example",
+                      "service": "example"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StackArchiveImportPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Check creating a stack from an archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.import_archive.preview",
+        "x-docker-manager-capability": "stack.create",
+        "x-docker-manager-scope": "environment"
+      }
+    },
+    "/api/v1/stack-archives/{archiveId}/imports": {
+      "post": {
+        "description": "Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and deploys the stack when asked. A failure before that removes what the job wrote and forgets the stack; a failed deploy keeps the stack. 501 agent_unsupported for older agents.",
+        "operationId": "create-stack-archive-import",
+        "parameters": [
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                "name": "web"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/StackArchiveImportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attempt": 1,
+                  "blockedBy": {
+                    "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "reason": "lock"
+                  },
+                  "cancelRequested": false,
+                  "cancellable": false,
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "dispatchedAt": "2026-09-25T12:00:00Z",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "error": {
+                    "class": "agent_offline",
+                    "message": "example",
+                    "recovery": "example"
+                  },
+                  "executor": "agent",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "id": "0190a6e0-0000-7000-8000-000000000001",
+                  "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "message": "example",
+                      "name": "web",
+                      "status": "succeeded"
+                    }
+                  ],
+                  "kind": "stack.deploy",
+                  "locks": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "mode": "shared",
+                      "name": "web",
+                      "scope": "host"
+                    }
+                  ],
+                  "locksHeld": false,
+                  "origin": "manual",
+                  "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "progress": {
+                    "message": "example",
+                    "percent": 1,
+                    "step": "example"
+                  },
+                  "retryOf": "example",
+                  "retryable": false,
+                  "startedAt": "2026-09-25T12:00:00Z",
+                  "state": "queued",
+                  "targets": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "type": "stack"
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error501"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Create a stack from an archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.create",
+        "x-docker-manager-capability": "stack.create",
+        "x-docker-manager-idempotency": "stored",
+        "x-docker-manager-scope": "environment"
+      }
+    },
     "/api/v1/stacks": {
       "get": {
         "description": "Managed Compose stacks in creation order, filtered per item (#17): stack.read shows a stack in full, any other capability on it (or inside it) only its identity and status. Pages may hold fewer items than limit; follow nextCursor.",
@@ -66023,6 +67508,700 @@
           "Stacks"
         ],
         "x-docker-manager-capability": "stack.read",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/export-previews": {
+      "post": {
+        "description": "Computes what exporting the stack as an archive does, before anything stops: the named volumes and whether their data is included (plain local volumes; external volumes, volumes with driver options or other drivers, anonymous volumes and bind mounts outside the project folder are not), the sizes against the archive limit (DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB) and the manager's free space, the services that stop and the downtime, and the newest archive of the stack still available. Needs stack.export, stack.files.download and stack.definition.read; a volume the caller may not download (volume.files.download) is marked and must be left out. Changes nothing.",
+        "operationId": "create-stack-export-preview",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "$ref": "#/components/schemas/StackExportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "allowed": false,
+                  "blockers": [
+                    {
+                      "code": "example",
+                      "message": "example",
+                      "resource": "example",
+                      "service": "example"
+                    }
+                  ],
+                  "downtimeSeconds": 1,
+                  "latest": {
+                    "createdAt": "2026-09-25T12:00:00Z",
+                    "expiresAt": "2026-09-25T12:00:00Z",
+                    "exportId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "fileName": "web-2026-10-10.tar.gz",
+                    "sha256": "example",
+                    "size": 1,
+                    "volumes": [
+                      "example"
+                    ]
+                  },
+                  "managerFreeBytes": 1,
+                  "maxBytes": 1,
+                  "notIncluded": [
+                    {
+                      "key": "example",
+                      "kind": "volume",
+                      "name": "web",
+                      "reason": "example"
+                    }
+                  ],
+                  "projectBytes": 1,
+                  "running": [
+                    "example"
+                  ],
+                  "stackId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "totalBytes": 1,
+                  "truncated": false,
+                  "volumeBytes": 1,
+                  "volumes": [
+                    {
+                      "bytes": 1,
+                      "entries": 1,
+                      "excluded": false,
+                      "included": false,
+                      "key": "example",
+                      "name": "web",
+                      "notPermitted": false,
+                      "reason": "example",
+                      "truncated": false
+                    }
+                  ],
+                  "warnings": [
+                    {
+                      "code": "example",
+                      "message": "example",
+                      "resource": "example",
+                      "service": "example"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/StackExportPreview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Check a stack export",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.export.preview",
+        "x-docker-manager-capability": "stack.export",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/exports": {
+      "post": {
+        "description": "Re-runs the check (409 stack_archive_blocked with the blockers in details) and starts a stack.export job (202; the export ID is the job ID). The stack's running services stop, the project folder and the included volumes are read from the host (checksummed per chunk and as a whole) into one tar.gz on the manager, and the services start again. The archive is kept for a day (GET .../exports/{exportId}).",
+        "operationId": "create-stack-export",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "$ref": "#/components/schemas/StackExportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "attempt": 1,
+                  "blockedBy": {
+                    "jobId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                    "reason": "lock"
+                  },
+                  "cancelRequested": false,
+                  "cancellable": false,
+                  "createdAt": "2026-09-25T12:00:00Z",
+                  "dispatchedAt": "2026-09-25T12:00:00Z",
+                  "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "error": {
+                    "class": "agent_offline",
+                    "message": "example",
+                    "recovery": "example"
+                  },
+                  "executor": "agent",
+                  "finishedAt": "2026-09-25T12:00:00Z",
+                  "id": "0190a6e0-0000-7000-8000-000000000001",
+                  "initiatorTokenId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "initiatorUserId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "items": [
+                    {
+                      "message": "example",
+                      "name": "web",
+                      "status": "succeeded"
+                    }
+                  ],
+                  "kind": "stack.deploy",
+                  "locks": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "mode": "shared",
+                      "name": "web",
+                      "scope": "host"
+                    }
+                  ],
+                  "locksHeld": false,
+                  "origin": "manual",
+                  "policyId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                  "progress": {
+                    "message": "example",
+                    "percent": 1,
+                    "step": "example"
+                  },
+                  "retryOf": "example",
+                  "retryable": false,
+                  "startedAt": "2026-09-25T12:00:00Z",
+                  "state": "queued",
+                  "targets": [
+                    {
+                      "environmentId": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "id": "0192f5e4-8b7a-7c3e-9d2f-1a2b3c4d5e6f",
+                      "type": "stack"
+                    }
+                  ],
+                  "updatedAt": "2026-09-25T12:00:00Z"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Accepted",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "description": "URL of the job.",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error409"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error502"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error503"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error504"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Export a stack as an archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.export",
+        "x-docker-manager-capability": "stack.export",
+        "x-docker-manager-idempotency": "job",
+        "x-docker-manager-scope": "resource"
+      }
+    },
+    "/api/v1/stacks/{stackId}/exports/{exportId}": {
+      "get": {
+        "description": "Streams a finished export's archive (application/gzip, Content-Length, ETag = its SHA-256, a single Range: 206 or 416). 404 once it expired (a day after the export). The archive holds the stack's files with their .env values and the volumes' data: keep it safe.",
+        "operationId": "download-stack-export",
+        "parameters": [
+          {
+            "description": "Stack ID.",
+            "in": "path",
+            "name": "stackId",
+            "required": true,
+            "schema": {
+              "description": "Stack ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Export ID (the stack.export job's ID).",
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "description": "Export ID (the stack.export job's ID).",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Range",
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The archive."
+          },
+          "206": {
+            "content": {
+              "application/gzip": {
+                "schema": {
+                  "contentMediaType": "application/octet-stream",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The requested range."
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error401"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error403"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error404"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "416": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error416"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Requested Range Not Satisfiable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error422"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "examples": {
+                  "error": {
+                    "$ref": "#/components/examples/Error500"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Download a stack archive",
+        "tags": [
+          "Stacks"
+        ],
+        "x-docker-manager-audit": "stack.export",
+        "x-docker-manager-capability": "stack.export",
         "x-docker-manager-scope": "resource"
       }
     },
