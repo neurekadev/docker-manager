@@ -189,7 +189,7 @@ type Manager struct {
 	// (#313).
 	archives *stackarchives.Service
 	updates  *updates.Service
-	backups    *backups.Service
+	backups  *backups.Service
 	// diag serves the internal metrics and the support bundle (#34).
 	diag *diagnostics.Service
 	// moveLock and moves move the manager to a new server
