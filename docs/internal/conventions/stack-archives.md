@@ -24,8 +24,9 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
   4096) and refuses repeated volume keys, volume names and definition
   files; an export's check validates the manifest it would write, so no
   export produces an archive an upload refuses. Resolve default Compose
-  files exactly as the agent does (`compose.configFiles`). An import sends
-  its parts through one open reader (`archiveCursor`), in archive order.
+  files exactly as the agent does (`compose.configFiles`). An import step
+  sends its parts through one open reader (`archiveCursor`), in archive
+  order.
 - Archive bytes never reach an agent unverified: an upload is validated
   while it is written (`inspect`), and every part an import sends is
   re-encoded by `Reader.WriteTo` (names below the part, hard links to

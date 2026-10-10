@@ -441,6 +441,7 @@ describe('migration, updates and jobs', () => {
 		expect(findingTitle('port_conflict')).toBe('Port Already in Use');
 		expect(findingTitle('network_not_creatable')).toBe('Network Must Be Created by Hand');
 		expect(findingTitle('archive_too_large')).toBe('Archive Too Large');
+		expect(findingTitle('not_exportable')).toBe('Stack Cannot Be Archived');
 		expect(findingTitle('project_name_pinned')).toBe('Project Name Pinned');
 		expect(findingTitle('some_new_code')).toBe('Some new code');
 	});

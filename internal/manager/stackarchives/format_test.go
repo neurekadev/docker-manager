@@ -255,7 +255,6 @@ func TestReaderRefuses(t *testing.T) {
 		"own label":           {bad(func(m *Manifest) { m.Volumes[0].Labels = map[string]string{"docker-manager.migration": "x"} }), nil},
 		"not following":       {bad(func(m *Manifest) { m.Volumes[0].Name = "other" }), nil},
 		"definition file":     {bad(func(m *Manifest) { m.Stack.ConfigFiles = []string{"../compose.yaml"} }), nil},
-		"too many names":      {bad(func(m *Manifest) { m.Services = []ManifestService{{Name: "web", ContainerNames: make([]string, 4097)}} }), nil},
 		"repeated file":       {bad(func(m *Manifest) { m.Stack.ConfigFiles = []string{"a.yaml", "a.yaml"} }), nil},
 		"too many files":      {bad(func(m *Manifest) { m.Stack.ConfigFiles = strings.Split("a b c d e f g h i j k l m n o p q", " ") }), nil},
 	}
@@ -394,6 +393,20 @@ func mustJSON(t *testing.T, v any) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// TestManifestQueryBound: the names one import check asks the
+// destination about stay within the agents' bound.
+func TestManifestQueryBound(t *testing.T) {
+	m := testManifest() // one volume
+	m.Services = []ManifestService{{Name: "web", ContainerNames: make([]string, maxQuery-1)}}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("at the bound: %v", err)
+	}
+	m.Services[0].ContainerNames = append(m.Services[0].ContainerNames, "one-more")
+	if err := m.Validate(); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("past the bound: %v", err)
+	}
 }
 
 func TestSparseMembersAreRefused(t *testing.T) {

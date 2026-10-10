@@ -571,6 +571,11 @@ func (s *Service) exportWrite(ctx context.Context, sc *jobexec.StepContext) erro
 		sizes = &exportSizes{}
 	}
 	m := s.manifest(st, facts, in, *sizes)
+	// The definition may have changed since the check: never write an
+	// archive an upload would refuse (the start step runs the stack again).
+	if err := m.Validate(); err != nil {
+		return &classed{class: FindingNotExportable, err: fmt.Errorf("the stack cannot be written as an archive: %w", err), recovery: recoveryExport}
+	}
 	for attempt := 1; ; attempt++ {
 		f, err := s.writeArchive(ctx, sc, st, in, m, sizes.Total)
 		if err == nil {

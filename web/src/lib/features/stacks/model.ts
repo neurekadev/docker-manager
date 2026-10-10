@@ -520,6 +520,7 @@ const FINDING_TITLES: Record<string, string> = {
 	network_created: 'Network Created First',
 	network_name_conflict: 'Network Name Taken',
 	network_not_creatable: 'Network Must Be Created by Hand',
+	not_exportable: 'Stack Cannot Be Archived',
 	no_stacks: 'No Stacks to Migrate',
 	plain_http_transport: 'Unencrypted Transfer',
 	platform_mismatch: 'Platform Mismatch',

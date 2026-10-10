@@ -120,7 +120,7 @@ the new volumes exclusive; capability `stack.create`, `prepare` re-checks
    (a name `<old project>_<key>` follows the new name), decide where the
    data goes; one that differs must not exist yet, and the cleanup covers
    it.
-5. **transfer_volumes** (one open archive reader for all parts, in
+5. **transfer_volumes** (one open archive reader for the step's parts, in
    archive order; a retry opens it again) — each volume through `migration.receive` with
    `compose: {stack, key}`: the agent creates it exactly as Compose would for
    the new stack (name, labels, configuration hash) and fills it.
