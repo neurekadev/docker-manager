@@ -11,13 +11,15 @@
 	// Each row shows the stack tile, or the image of the template the stack
 	// was created from. Create and import are shown only with stack.create /
 	// stack.import (the server still decides). The Create Stack button's
-	// menu creates a stack from a template. A stack's running job (started
+	// menu creates a stack from a template or from an archive Export
+	// Archive wrote. A stack's running job (started
 	// here, on its page or elsewhere) shows in its Status cell, found in the
 	// running list (one match for the whole list), so it stays after a
 	// reload (docs/internal/web.md, "Job progress after reload").
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
+	import FileArchive from '@lucide/svelte/icons/file-archive';
 	import FolderSearch from '@lucide/svelte/icons/folder-search';
 	import LayoutTemplate from '@lucide/svelte/icons/layout-template';
 	import Play from '@lucide/svelte/icons/play';
@@ -69,6 +71,7 @@
 	import { applyListFilters, isFiltering, listSummary } from '$lib/features/resources/filters';
 	import { ListFilters } from '$lib/features/resources/list-filters.svelte';
 	import CreateStackDialog from '$lib/features/stacks/CreateStackDialog.svelte';
+	import CreateFromArchiveDialog from '$lib/features/stacks/CreateFromArchiveDialog.svelte';
 	import ImportStackDialog from '$lib/features/stacks/ImportStackDialog.svelte';
 	import { urlDialog } from '$lib/features/common/urlDialog.svelte';
 	import UpdateStatusBadge from '$lib/features/updates/UpdateStatusBadge.svelte';
@@ -112,6 +115,8 @@
 	const importDialog = urlDialog('import', ['environment']);
 	// routes.stackFromTemplate() opens the template dialog.
 	const templateDialog = urlDialog('fromTemplate', ['template', 'registry', 'environment']);
+	// routes.stackFromArchive() opens the archive dialog.
+	const archiveDialog = urlDialog('fromArchive', ['environment']);
 
 	// The stacks' running jobs: started here (shown at once) or in the
 	// running list.
@@ -420,6 +425,11 @@
 							label: 'Create Stack From Template',
 							icon: LayoutTemplate,
 							onSelect: () => (templateDialog.open = true)
+						},
+						{
+							label: 'Create Stack From Archive',
+							icon: FileArchive,
+							onSelect: () => (archiveDialog.open = true)
 						}
 					]}
 				/>
@@ -483,6 +493,8 @@
 												>Create Stack</Button
 											><Button onclick={() => (templateDialog.open = true)}
 												>Create From Template</Button
+											><Button onclick={() => (archiveDialog.open = true)}
+												>Create From Archive</Button
 											>{/if}
 										{#if canImport}<Button
 												onclick={() => (importDialog.open = true)}
@@ -519,6 +531,10 @@
 	<ImportStackDialog
 		bind:open={importDialog.open}
 		environmentId={importDialog.param('environment') ?? envId}
+	/>
+	<CreateFromArchiveDialog
+		bind:open={archiveDialog.open}
+		environmentId={archiveDialog.param('environment') ?? envId}
 	/>
 	<CreateFromTemplateDialog
 		bind:open={templateDialog.open}

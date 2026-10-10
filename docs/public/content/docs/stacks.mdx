@@ -1,6 +1,6 @@
 ---
 title: Stacks
-description: Create, deploy, edit and import your Compose apps.
+description: Create, deploy, edit, import and export your Compose apps.
 ---
 
 A **stack** is a Compose app: a `compose.yaml`, an optional `.env` and any
@@ -162,6 +162,51 @@ Good to know:
   files. Redeploy the project in the old tool first.
 - After the import, stop the old tool from managing the project.
 
+## Export a stack as an archive
+
+An archive is one file with the stack's folder and the data of its
+volumes. Use it to keep a copy, or to create the stack on another server
+or another Docker Manager.
+
+1. On the stack's page, open **More Stack Actions → Export Archive**.
+2. Check the list of volumes. Clear **Include** for any volume you don't
+   want in the archive.
+3. Press **Export Archive**.
+
+The stack stops while the archive is written, then starts again. The
+download starts when the export is done. If you closed the dialog, use
+**Download Archive** in the message that appears, or open **Export
+Archive** again.
+
+<Callout type="warn">
+  The archive holds your `.env` values and your volumes' data. Keep it
+  somewhere safe.
+</Callout>
+
+## Create a stack from an archive
+
+1. Open **Stacks** and choose **Create Stack ▾ → Create Stack From Archive**.
+2. Press **Choose Archive** and pick the file, or drop it on the dialog.
+3. Pick the **Environment** (only when you have more than one).
+4. Keep the **Name** or enter a new one. Volumes named after the stack get
+   the new name too.
+5. Press **Create Stack**, then **Open Stack**.
+
+Docker Manager checks the environment before it writes anything, and lists
+what must be fixed, for example a name, folder, volume or port already in
+use there. To only create the stack, turn off **Deploy After Creating**.
+
+Good to know:
+
+- Archives stay on the manager for one day, then they are removed.
+- Archives can be up to 10 GB. Change the limit with
+  `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB` (see [Configuration](/configuration)).
+- Not in the archive: external volumes, volumes with driver options,
+  anonymous volumes, folders mounted from outside the stack's folder, and
+  images. Images are pulled or built when the stack is deployed.
+- If `compose.yaml` sets `name:` at the top, the new stack must use that
+  name.
+
 ## Rename a stack
 
 Press the pencil next to the stack's name, type the new name and press
@@ -184,4 +229,5 @@ order.
 
 If you import Docker Manager's own project, **Deploy**, **Pull and Deploy**
 and **Force Recreate** work, so you can upgrade Docker Manager from the
-app. Restart, Stop, Migrate, Rename and Delete are off for it.
+app. Restart, Stop, Migrate, Export Archive, Rename and Delete are off for
+it.

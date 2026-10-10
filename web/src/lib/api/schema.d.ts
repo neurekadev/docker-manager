@@ -41595,7 +41595,10 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                /** @description Uploaded archive ID. */
+                archiveId: string;
+            };
             cookie?: never;
         };
         requestBody: {
@@ -41745,7 +41748,10 @@ export interface operations {
                 /** @description Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation. */
                 "Idempotency-Key"?: string;
             };
-            path?: never;
+            path: {
+                /** @description Uploaded archive ID. */
+                archiveId: string;
+            };
             cookie?: never;
         };
         requestBody: {

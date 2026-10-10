@@ -43,7 +43,9 @@ export const JOB_KIND_LABELS: Record<string, string> = {
 	'stack.deploy': 'Deploy Stack',
 	// A stack's Stop is Compose down; a plain stop only acts on services.
 	'stack.down': 'Stop Stack',
+	'stack.export': 'Export Archive',
 	'stack.import': 'Import Project',
+	'stack.import_archive': 'Create Stack From Archive',
 	'stack.migrate': 'Migrate Stack',
 	'stack.pull': 'Pull Stack Images',
 	'stack.remove': 'Delete Stack',
@@ -262,6 +264,14 @@ export function jobAgain(
 			href: routes.build(job.environmentId, job.id),
 			label: 'Open the Build to Build Again'
 		};
+	// A stack an archive did not fill is gone again: start over from the list.
+	if (job.kind === 'stack.import_archive')
+		return {
+			href: routes.stackFromArchive(job.environmentId),
+			label: 'Create the Stack From the Archive Again'
+		};
+	if (job.kind === 'stack.export' && t?.type === 'stack')
+		return { href: routes.stackExport(t.id), label: 'Export the Archive Again' };
 	if (t?.type === 'stack')
 		return { href: routes.stack(t.id), label: 'Open the Stack to Try Again' };
 	if (t?.type === 'container' && job.environmentId && !job.kind.endsWith('.remove'))

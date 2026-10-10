@@ -64414,6 +64414,19 @@
       "post": {
         "description": "Checks the environment before anything is written: the stack name and Compose project, the folder, containers, volumes and networks the stack would create (names that follow the project follow the new name), published ports, external networks and volumes, free space, a project name pinned by the Compose file, and images built on the source. Needs stack.create in the environment, volume.create when the archive has volumes and stack.deploy to deploy. Changes nothing.",
         "operationId": "create-stack-archive-import-preview",
+        "parameters": [
+          {
+            "description": "Uploaded archive ID.",
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "description": "Uploaded archive ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -64631,6 +64644,17 @@
         "description": "Re-runs the check (409 stack_archive_blocked) and starts a stack.import_archive job (202). The stack is created at once (the job's target, undeployed); the job copies the project folder into a new folder of the environment's stacks volume, reads the Compose definition back as the stack's first revision, creates each volume as Compose would for the new stack and fills it, and deploys the stack when asked. A failure before that removes what the job wrote and forgets the stack; a failed deploy keeps the stack. 501 agent_unsupported for older agents.",
         "operationId": "create-stack-archive-import",
         "parameters": [
+          {
+            "description": "Uploaded archive ID.",
+            "in": "path",
+            "name": "archiveId",
+            "required": true,
+            "schema": {
+              "description": "Uploaded archive ID.",
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
           {
             "description": "Client-generated key (for example a UUID) making retries of this request safe for 24 hours. Scoped to the caller and the operation.",
             "in": "header",

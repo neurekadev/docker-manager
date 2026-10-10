@@ -44,6 +44,11 @@ describe('stackJobCopy', () => {
 			failure: 'Silo was not deployed'
 		});
 		expect(stackJobCopy('stack.migrate', 'Silo').title).toBe('Migrate Silo');
+		expect(stackJobCopy('stack.export', 'Silo')).toEqual({
+			title: 'Export Silo as an Archive',
+			success: 'Exported Silo as an archive',
+			failure: 'Silo was not exported'
+		});
 		expect(stackJobCopy('stack.rename', 'Silo').failure).toBe('Silo was not renamed');
 	});
 

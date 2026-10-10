@@ -231,12 +231,12 @@ func (b StackArchiveImportBody) request() stackarchives.ImportRequest {
 }
 
 type stackArchiveImportPreviewInput struct {
-	stackArchivePath
-	Body StackArchiveImportBody
+	ArchiveID string `path:"archiveId" maxLength:"64" doc:"Uploaded archive ID."`
+	Body      StackArchiveImportBody
 }
 
 type stackArchiveImportInput struct {
-	stackArchivePath
+	ArchiveID string `path:"archiveId" maxLength:"64" doc:"Uploaded archive ID."`
 	IdempotencyKeyParam
 	Body StackArchiveImportBody
 }

@@ -88,6 +88,11 @@ const COPY: Record<string, (t: string) => StackJobCopy> = {
 		success: `Migrated ${t}`,
 		failure: `${t} was not migrated`
 	}),
+	'stack.export': (t) => ({
+		title: `Export ${t} as an Archive`,
+		success: `Exported ${t} as an archive`,
+		failure: `${t} was not exported`
+	}),
 	'stack.remove_source': (t) => ({
 		title: `Remove ${t} From the Old Environment`,
 		success: `Removed ${t} from the old environment`,

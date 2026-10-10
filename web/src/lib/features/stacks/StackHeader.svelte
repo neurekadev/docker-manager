@@ -14,17 +14,19 @@
 	// the lifecycle split button (LifecycleButton: Stop while anything
 	// runs, Start when stopped; its menu has Start, Restart and Stop, and
 	// Stop runs Compose down with stack.stop) and
-	// overflow (Migrate with more than one environment, Edit Details, Save
-	// as Template, Delete). Each action is shown only with its capability
+	// overflow (Migrate with more than one environment, Export Archive, Edit
+	// Details, Save as Template, Delete; Export Archive opens the layout's
+	// dialog through `onexport`). Each action is shown only with its capability
 	// (the server still decides). Start and Restart run at once; Stop,
 	// Delete, Force Recreate and Remove Orphans and Deploy confirm with their
 	// exact consequences first. Docker Manager's own stack (#32) deploys and
-	// force recreates; Restart, Stop, Migrate, Rename and Delete stay
+	// force recreates; Restart, Stop, Migrate, Export Archive, Rename and Delete stay
 	// visible but disabled, with the reason. While a rename of the
 	// stack runs (the tray's stack.rename job, or one in the stack's jobs
 	// after a reload) every action is off, with the reason.
 	import { goto } from '$app/navigation';
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import Archive from '@lucide/svelte/icons/archive';
 	import ArrowRightLeft from '@lucide/svelte/icons/arrow-right-left';
 	import Clock from '@lucide/svelte/icons/clock';
 	import Package from '@lucide/svelte/icons/package';
@@ -114,6 +116,8 @@
 		removeOrphans?: RemoveOrphansRequest;
 		/** Show the actions (hidden while the migration wizard is open). */
 		showActions?: boolean;
+		/** Opens the Export Archive dialog (the menu offers it only then). */
+		onexport?: () => void;
 		now?: Date;
 	}
 
@@ -123,6 +127,7 @@
 		tray,
 		removeOrphans = new RemoveOrphansRequest(),
 		showActions = true,
+		onexport,
 		now = new Date()
 	}: Props = $props();
 
@@ -135,7 +140,7 @@
 	// delete Docker Manager.
 	const protectedStack = $derived(!!stack.protection);
 	const selfReason =
-		'Docker Manager cannot stop, restart, migrate, rename or delete its own stack. Deploy works.';
+		'Docker Manager cannot stop, restart, migrate, export, rename or delete its own stack. Deploy works.';
 	// A restore of the stack's data starts what was running itself; the
 	// server refuses starts meanwhile (restore_in_progress), so hide them.
 	const jobs = createQuery(() => stackJobsQuery(stack.id));
@@ -432,6 +437,19 @@
 				icon: ArrowRightLeft,
 				href: protectedStack || renaming ? undefined : routes.stack(stack.id, 'migrate'),
 				disabled: protectedStack || renaming
+			});
+		// The export also reads the stack's files and definition.
+		if (
+			onexport &&
+			can('stack.export') &&
+			can('stack.files.download') &&
+			can('stack.definition.read')
+		)
+			items.push({
+				label: 'Export Archive',
+				icon: Archive,
+				onSelect: onexport,
+				disabled: protectedStack || offline || renaming
 			});
 		if (can('stack.manage') && stack.revision !== undefined)
 			items.push({

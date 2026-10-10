@@ -81,6 +81,8 @@ const calls: Record<keyof typeof routes, string[]> = {
 	stackLogs: [routes.stackLogs('st-1'), routes.stackLogs('st-1', 'web')],
 	newStack: [routes.newStack(), routes.newStack('env-1')],
 	importStack: [routes.importStack(), routes.importStack('env-1')],
+	stackFromArchive: [routes.stackFromArchive(), routes.stackFromArchive('env-1')],
+	stackExport: [routes.stackExport('st-1')],
 	stackFromTemplate: [
 		routes.stackFromTemplate(),
 		routes.stackFromTemplate('tp-1', 'env-1'),
