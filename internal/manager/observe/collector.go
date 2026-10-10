@@ -228,7 +228,8 @@ func sampleFrom(b protocol.MetricBatch, skew time.Duration, recv time.Time) doma
 		flags |= domain.SampleEngineUnavailable
 	}
 	h := b.Host
-	out := domain.MetricSample{At: at.UTC(), Flags: flags, Host: &domain.HostValues{CPUPercent: h.CPUPercent, MemoryUsedBytes: h.MemoryUsedBytes,
+	out := domain.MetricSample{At: at.UTC(), Flags: flags, Host: &domain.HostValues{CPUPercent: h.CPUPercent, IOWaitPercent: h.IOWaitPercent,
+		MemoryUsedBytes:  h.MemoryUsedBytes,
 		MemoryTotalBytes: h.MemoryTotalBytes, MemoryCacheBytes: h.MemoryCacheBytes, MemoryZFSARCBytes: h.MemoryZFSARCBytes,
 		SwapUsedBytes: h.SwapUsedBytes, SwapTotalBytes: h.SwapTotalBytes, Load1: h.Load1, Load5: h.Load5, Load15: h.Load15,
 		NetworkRxBPS: h.NetworkRxBytesPerSecond, NetworkTxBPS: h.NetworkTxBytesPerSecond, DiskReadBPS: h.DiskReadBytesPerSecond,

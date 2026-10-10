@@ -43,6 +43,7 @@ The agent reads procfs (`DOCKER_AGENT_HOST_PROC`, default `/proc`) every 10 s:
 | Value | Source | Notes |
 | --- | --- | --- |
 | CPU % | `stat` (aggregate `cpu` line) | busy = total − idle − iowait between two samples, percent of all cores (0–100); the first sample has none |
+| I/O wait % | `stat` (aggregate `cpu` line) | iowait share of all CPU time between two samples (0–100; idle with disk I/O outstanding, not part of CPU %); none for the first sample or when the iowait counter went backwards (tickless kernels) (#309) |
 | memory used / total / available | `meminfo`, `spl/kstat/zfs/arcstats` | used = `MemTotal` − `MemAvailable` − the ZFS ARC (neither the page cache nor the ARC is used, like Beszel); kernels without `MemAvailable` use free + buffers + cached; the ARC is subtracted only while it is below that |
 | memory cache, ZFS ARC | `meminfo`, `spl/kstat/zfs/arcstats` | cache = `Buffers` + `Cached` + `SReclaimable` − `Shmem`, at most total − used − ARC; ARC = the arcstats `size` row, absent on hosts without ZFS (no arcstats: nothing logged) |
 | swap used / total | `meminfo` | `SwapTotal` − `SwapFree`; 0 / 0 without swap |
@@ -81,8 +82,8 @@ A value that cannot be read (missing file, parse error, counter going
 backwards after a reboot or wrap) is absent from that sample: a gap, never
 zero. Each problem is logged once until it clears. Tests:
 `TestHostMemorySplitsUsedCacheAndZFSARC`, `TestReadDiskIOSumsWholeDisks`,
-`TestHostSamplesMemoryBreakdownAndDiskThroughput` (agent),
-`TestHostMemorySwapAndDiskThroughputAreStored` (storage, rollups).
+`TestHostSamplesMemoryBreakdownAndDiskThroughput`, `TestHostIOWaitPercent` (agent),
+`TestHostMemorySwapAndDiskThroughputAreStored`, `TestHostIOWaitIsStored` (storage, rollups).
 
 **Temperatures** (#146, `observe/hwmon.go`). With every 10 s sample the
 agent reads the kernel's hwmon sensors from sysfs
@@ -295,7 +296,8 @@ for a range: one value per step bucket. Temperature series
 listed only for the sensors with at least one reading in the range (a
 sensor that disappeared drops out), sorted by name; filesystems are always
 listed. The environment's Overview draws the host charts in Beszel's order,
-colours and style (`METRIC_COLORS`): CPU, Memory (used, ZFS ARC and
+colours and style (`METRIC_COLORS`): CPU, I/O Wait (only while the range
+has values), Memory (used, ZFS ARC and
 cache / buffers stacked, ARC and cache only while the range has them), one
 Disk chart per filesystem, Disk I/O (only while the range has values),
 Network, Swap (only when the latest swap total is above 0), Load, and the
@@ -309,10 +311,10 @@ latest value, and absent when no sensor has a reading.
   about 300 points. Recent buckets not yet rolled up are read from the finer
   level, so a chart never has a hole at its right edge.
 - Averages are sample-weighted; `.max` keys are the maximum within the
-  bucket (`cpu.percent.max`, `memory.used_bytes.max`, network and
+  bucket (`cpu.percent.max`, `cpu.iowait_percent.max`, `memory.used_bytes.max`, network and
   `block.*` disk throughput maxima, `temperature.celsius.max`).
 - Host keys beyond CPU, memory used/total, load and network:
-  `memory.cache_bytes`, `memory.zfs_arc_bytes`, `swap.used_bytes`,
+  `cpu.iowait_percent` (percent of all CPU time), `memory.cache_bytes`, `memory.zfs_arc_bytes`, `swap.used_bytes`,
   `swap.total_bytes` (bytes) and `block.read_bytes_per_second`,
   `block.write_bytes_per_second` (the host's disks; the container keys of
   the same name are its block I/O). Samples of older agents have none (gaps).

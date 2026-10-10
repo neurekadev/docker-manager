@@ -39,9 +39,10 @@ func readProc(fsys fs.FS, name string) ([]byte, error) {
 	return b, nil
 }
 
-// cpuTimes are the aggregate jiffies of /proc/stat's "cpu" line.
+// cpuTimes are the aggregate jiffies of /proc/stat's "cpu" line; iowait
+// is the idle time with I/O outstanding.
 type cpuTimes struct {
-	busy, total uint64
+	busy, total, iowait uint64
 }
 
 // readCPU parses /proc/stat: the aggregate line and the number of cpuN
@@ -78,6 +79,7 @@ func readCPU(fsys fs.FS) (cpuTimes, int, error) {
 		// user nice system idle iowait irq softirq steal
 		t.total = v[0] + v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7]
 		t.busy = t.total - v[3] - v[4]
+		t.iowait = v[4]
 		found = true
 	}
 	if !found {

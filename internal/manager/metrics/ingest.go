@@ -70,11 +70,11 @@ func (s *Store) Ingest(ctx context.Context, envID string, samples []domain.Metri
 					return err
 				}
 				n, err := exec(ctx, tx, `INSERT OR IGNORE INTO host_raw (series_id, ts, flags, cpu, mem_used, mem_total, load1, load5, load15, net_rx, net_tx,
-					mem_cache, mem_arc, swap_used, swap_total, disk_r, disk_w)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, ts, smp.Flags, scaled(h.CPUPercent, 100), intv(h.MemoryUsedBytes),
+					mem_cache, mem_arc, swap_used, swap_total, disk_r, disk_w, iowait)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, ts, smp.Flags, scaled(h.CPUPercent, 100), intv(h.MemoryUsedBytes),
 					intv(h.MemoryTotalBytes), scaled(h.Load1, 100), scaled(h.Load5, 100), scaled(h.Load15, 100), scaled(h.NetworkRxBPS, 1),
 					scaled(h.NetworkTxBPS, 1), intv(h.MemoryCacheBytes), intv(h.MemoryZFSARCBytes), intv(h.SwapUsedBytes), intv(h.SwapTotalBytes),
-					scaled(h.DiskReadBPS, 1), scaled(h.DiskWriteBPS, 1))
+					scaled(h.DiskReadBPS, 1), scaled(h.DiskWriteBPS, 1), scaled(h.IOWaitPercent, 100))
 				if err != nil {
 					return err
 				}

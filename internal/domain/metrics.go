@@ -36,7 +36,9 @@ const (
 
 // HostValues are host-wide values of one sample.
 type HostValues struct {
-	CPUPercent       *float64
+	CPUPercent *float64
+	// IOWaitPercent is the CPU time idle with disk I/O outstanding.
+	IOWaitPercent    *float64
 	MemoryUsedBytes  *int64
 	MemoryTotalBytes *int64
 	// MemoryCacheBytes (buffers and page cache) and MemoryZFSARCBytes (the

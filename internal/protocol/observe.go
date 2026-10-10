@@ -159,6 +159,9 @@ type HostSample struct {
 	// CPUPercent is busy time of all cores, 0..100 (% of total capacity).
 	CPUPercent *float64 `json:"cpuPercent,omitempty"`
 	CPUs       int      `json:"cpus,omitempty"`
+	// IOWaitPercent is the time the cores were idle with disk I/O
+	// outstanding, 0..100 of all CPU time (absent from older agents).
+	IOWaitPercent *float64 `json:"ioWaitPercent,omitempty"`
 	// MemoryUsedBytes is total minus available without the ZFS ARC
 	// (neither the page cache nor the ARC is "used").
 	MemoryUsedBytes      *int64 `json:"memoryUsedBytes,omitempty"`
@@ -330,7 +333,7 @@ func (o HostMetricsOutput) Validate() error {
 
 func (b MetricBatch) validate() error {
 	h := b.Host
-	if !finite(h.CPUPercent, 0, 100) || !finite(h.Load1, 0, 1e6) || !finite(h.Load5, 0, 1e6) || !finite(h.Load15, 0, 1e6) ||
+	if !finite(h.CPUPercent, 0, 100) || !finite(h.IOWaitPercent, 0, 100) || !finite(h.Load1, 0, 1e6) || !finite(h.Load5, 0, 1e6) || !finite(h.Load15, 0, 1e6) ||
 		!finite(h.NetworkRxBytesPerSecond, 0, maxRate) || !finite(h.NetworkTxBytesPerSecond, 0, maxRate) ||
 		!finite(h.DiskReadBytesPerSecond, 0, maxRate) || !finite(h.DiskWriteBytesPerSecond, 0, maxRate) ||
 		!nonNegative(h.MemoryUsedBytes, h.MemoryTotalBytes, h.MemoryAvailableBytes, h.MemoryCacheBytes, h.MemoryZFSARCBytes,

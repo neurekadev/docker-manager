@@ -1,12 +1,12 @@
 <script lang="ts">
 	// Host metrics of one environment (#5) in Beszel's order, colours and
-	// style (METRIC_COLORS): CPU, memory (used, ZFS ARC and cache stacked),
+	// style (METRIC_COLORS): CPU, I/O wait (#309), memory (used, ZFS ARC and cache stacked),
 	// disk usage, disk I/O, network, swap (only when the host has swap),
 	// load and the temperature sensors (#146, only when the host reports
 	// any in the range) over a chosen range, explained in plain words
 	// (averages on long ranges, shaded gaps); charts of rates with a legend
 	// leave out the headline value the legend already shows. Charts of
-	// values older agents do not send (disk I/O) are left out while the
+	// values older agents do not send (I/O wait, disk I/O) are left out while the
 	// range has none. The per-container charts follow over
 	// the same range (ContainerCharts). Values come from GET …/metrics (downsampled
 	// by the manager; nulls are gaps: the agent was offline or a value was
@@ -50,6 +50,7 @@
 	const m = $derived(metrics.data);
 	const mounts = $derived(diskMounts(m));
 	const temperatures = $derived(temperatureItems(m));
+	const ioWait = $derived(hasValues(m, 'cpu.iowait_percent'));
 	const diskIO = $derived(
 		hasValues(m, 'block.read_bytes_per_second') || hasValues(m, 'block.write_bytes_per_second')
 	);
@@ -105,6 +106,25 @@
 					}
 				]}
 			/>
+			{#if ioWait}
+				<TimeSeriesChart
+					title="I/O Wait"
+					unit="percent"
+					timestamps={m.timestamps}
+					from={m.from}
+					to={m.to}
+					yMax={100}
+					detail="of CPU time"
+					lines={[
+						{
+							name: 'I/O Wait',
+							values: seriesValues(m, 'cpu.iowait_percent'),
+							color: METRIC_COLORS.ioWait,
+							area: true
+						}
+					]}
+				/>
+			{/if}
 			<TimeSeriesChart
 				title="Memory"
 				unit="bytes"

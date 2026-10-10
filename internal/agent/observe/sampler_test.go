@@ -216,6 +216,30 @@ func TestHostSamplesFromProcfs(t *testing.T) {
 	}
 }
 
+// TestHostIOWaitPercent (#309): I/O wait is the iowait share of all CPU
+// time between two samples, apart from (and not part of) CPU busy; the
+// first sample and an iowait counter that went backwards give a gap.
+func TestHostIOWaitPercent(t *testing.T) {
+	fsys := procFS(statA, meminfoText, "0.50 1.25 2.00 1/100 42\n", "3600.55 100.00\n", netA)
+	s := newTestSampler(t, fsys, nil)
+	t0 := testutil.Epoch
+	if h := s.Tick(context.Background(), t0).Host; h.IOWaitPercent != nil {
+		t.Fatalf("first sample has I/O wait %v", *h.IOWaitPercent)
+	}
+	// +200 user/system, +100 idle, +200 iowait of +500: 40% busy, 40% I/O wait.
+	fsys["stat"] = &fstest.MapFile{Data: []byte("cpu  200 0 200 800 300 0 0 0 0 0\n")}
+	h := s.Tick(context.Background(), t0.Add(10*time.Second)).Host
+	if h.IOWaitPercent == nil || *h.IOWaitPercent != 40 || h.CPUPercent == nil || *h.CPUPercent != 40 {
+		t.Fatalf("iowait %v cpu %v", h.IOWaitPercent, h.CPUPercent)
+	}
+	// iowait went backwards (300 -> 250): a gap; CPU is still reported.
+	fsys["stat"] = &fstest.MapFile{Data: []byte("cpu  300 0 300 900 250 0 0 0 0 0\n")}
+	h = s.Tick(context.Background(), t0.Add(20*time.Second)).Host
+	if h.IOWaitPercent != nil || h.CPUPercent == nil {
+		t.Fatalf("backwards iowait %v cpu %v", h.IOWaitPercent, h.CPUPercent)
+	}
+}
+
 func TestProcParsersRejectGarbage(t *testing.T) {
 	for name, fsys := range map[string]fstest.MapFS{
 		"stat":    {"stat": {Data: []byte("intr 1\n")}},
