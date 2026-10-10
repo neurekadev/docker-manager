@@ -71,19 +71,25 @@ day; the download is a ranged file response.
 
 1. **Upload** (`create-stack-archive`): the body streams to
    `uploads/<id>.tar.gz.part` while `inspect` reads it through a pipe
-   (manifest, every part re-encoded to nowhere, sizes, the root Compose
-   files for a pinned `name:`); invalid archives are deleted, valid ones get
-   a sidecar and live a day. At most five per user, uploads in progress
-   included: at the limit the oldest one no stack is being created from is
-   discarded (an upload abandoned in a closed tab never locks its owner
-   out); the gzip trailer's checksum is verified; an archive may unpack to at most 100 times its size (at least
-   the archive limit). A body that ends early is `upload_incomplete`, never
-   taken for a complete archive.
+   (manifest, every part re-encoded to nowhere, sizes, the Compose files
+   Compose loads, in its order, for a pinned `name:` and the volumes they
+   name themselves, `NamedVolumes`); invalid archives are deleted, valid
+   ones get a sidecar and live a day. At most five per user, uploads in
+   progress included: at the limit the oldest one no stack is being created
+   from is set aside and discarded once the new upload is stored (a refused
+   upload loses nothing; an upload abandoned in a closed tab never locks
+   its owner out). Bounds: at most 20 million members; the files' bytes at
+   most 100 times the upload's size (at least the archive limit), the whole
+   decompressed stream (headers included) twice that plus 64 MiB, at most
+   1 MiB after the tar's end; the gzip trailer's checksum is verified. A
+   body that ends early, or sends nothing for 2 minutes, is
+   `upload_incomplete`, never taken for a complete archive.
 2. **Check** (`create-stack-archive-import-preview`, pure `evaluateImport`
    over the agent's `migration.preview` destination facts): the new name
    (taken, a running Compose project, pinned by the archive), the folder,
    the containers, volumes and networks the stack creates (names that follow
-   the old project name follow the new one), ports, external networks and
+   the old project name follow the new one, names the Compose files set
+   stay), ports, external networks and
    volumes, free space, images built on the source that are not there.
 3. **Start** (`create-stack-archive-import`, stored idempotency): the
    upload is claimed (one stack at a time), the stack reserved (undeployed,

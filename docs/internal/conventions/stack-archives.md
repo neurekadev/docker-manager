@@ -12,13 +12,18 @@ Guide: `docs/internal/architecture/stack-archives.md`. Manager
   (`docker-manager-stack.json`) first, then `project/` and each
   `volumes/<key>/` contiguous, each part the migration transfer's PAX tar
   re-rooted below its prefix. Bump `FormatVersion` for any change a version
-  1 reader would misread; keep `Writer`, `Reader` and `PinnedName` pure and
-  spec-tested (owners, modes, links, ordering and refusals).
+  1 reader would misread; keep `Writer`, `Reader`, `LoadedComposeFiles`,
+  `PinnedName` and `ExplicitVolumeNames` pure and spec-tested (owners,
+  modes, links, ordering, bounds and refusals). The reader keeps no
+  per-member state (millions of files cost no memory): bound it by members
+  (`MaxEntries`), file bytes and the whole decompressed stream
+  (`NewLimitedReader`), never by a set of names.
 - Archive bytes never reach an agent unverified: an upload is validated
   while it is written (`inspect`), and every part an import sends is
   re-encoded by `Reader.WriteTo` (names below the part, hard links to
-  earlier files of the same part, supported types); the agent's
-  `ExtractTree` checks again. Never hand an uploaded tar to an agent as is.
+  names of the same part, supported types); the agent's `ExtractTree`
+  checks the rest (hard links only to earlier regular files, parents,
+  duplicates, free space). Never hand an uploaded tar to an agent as is.
 - Exports read only through `migration.send` and imports write only through
   `migration.receive`, `migration.commit` and `migration.cleanup` (the
   stack-file rule of [stacks.md](stacks.md)): no other path writes a

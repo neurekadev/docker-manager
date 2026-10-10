@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -170,7 +171,7 @@ func TestRoundTrip(t *testing.T) {
 	if _, err := rd.Next(); !errors.Is(err, io.EOF) {
 		t.Fatalf("after the last part: %v", err)
 	}
-	if got := PinnedName(rd.ComposeFiles()); got != "shop" {
+	if got := PinnedName(rd.ComposeFiles(), nil); got != "shop" {
 		t.Errorf("PinnedName = %q", got)
 	}
 }
@@ -244,7 +245,7 @@ func TestReaderRefuses(t *testing.T) {
 		"escaping name":       {&m, []member{dir("project/"), file("project/../../etc/passwd")}},
 		"device node":         {&m, []member{dir("project/"), {name: "project/dev", typ: tar.TypeChar}}},
 		"hard link across":    {&m, append([]member{dir("project/"), file("project/a")}, dir("volumes/dbdata/"), member{name: "volumes/dbdata/b", typ: tar.TypeLink, link: "project/a"})},
-		"hard link forward":   {&m, append([]member{dir("project/"), {name: "project/b", typ: tar.TypeLink, link: "project/a"}, file("project/a")}, vol...)},
+		"hard link to root":   {&m, append([]member{dir("project/"), {name: "project/b", typ: tar.TypeLink, link: "project"}}, vol...)},
 		"wrong format":        {bad(func(m *Manifest) { m.Format = "zip" }), nil},
 		"newer version":       {bad(func(m *Manifest) { m.Version = 2 }), nil},
 		"bad stack name":      {bad(func(m *Manifest) { m.Stack.Name = "Shop!" }), nil},
@@ -321,13 +322,74 @@ func TestWriterRefusesParts(t *testing.T) {
 }
 
 func TestExplicitVolumeNames(t *testing.T) {
-	got := ExplicitVolumeNames(map[string][]byte{
-		"compose.yaml":          []byte("volumes:\n  data:\n    name: shop_data\n  cache: {}\n  env:\n    name: ${PREFIX}_env\n  plain:\n"),
-		"compose.override.yaml": []byte("volumes:\n  logs:\n    name: logs-forever\n"),
-	})
-	if len(got) != 2 || got["data"] != "shop_data" || got["logs"] != "logs-forever" {
+	files := map[string][]byte{
+		"compose.yaml":          []byte("volumes:\n  data:\n    name: shop_data\n  cache: {}\n  env:\n    name: ${PREFIX}_env\n  bad:\n    name: \"no/slash\"\n  plain:\n"),
+		"compose.override.yaml": []byte("volumes:\n  logs:\n    name: logs-forever\n  data:\n    name: override_data\n"),
+		"compose.bak.yaml":      []byte("volumes:\n  logs:\n    name: never-loaded\n"),
+		"stack.yml":             []byte("volumes:\n  data:\n    name: configured\n"),
+	}
+	// The defaults: the base file, then its override (which wins); other
+	// files are not loaded; invalid and interpolated names are ignored.
+	got := ExplicitVolumeNames(files, nil)
+	if len(got) != 2 || got["data"] != "override_data" || got["logs"] != "logs-forever" {
 		t.Fatalf("named %v", got)
 	}
+	if got := ExplicitVolumeNames(files, []string{"stack.yml"}); len(got) != 1 || got["data"] != "configured" {
+		t.Fatalf("configured files: %v", got)
+	}
+}
+
+// TestReaderBounds: the whole decompressed stream is bounded from its
+// first byte (headers count, not only file data), and little may follow
+// the archive's end.
+func TestReaderBounds(t *testing.T) {
+	m := testManifest()
+	m.Volumes = nil
+	ms := []member{{name: "project/", typ: tar.TypeDir}}
+	for i := range 2000 {
+		ms = append(ms, member{name: "project/d" + strings.Repeat("x", 50) + itoa(i) + "/", typ: tar.TypeDir})
+	}
+	b := rawArchive(t, true, &m, ms...)
+	if _, err := inspect(bytes.NewReader(b), 1<<20); err != nil {
+		t.Fatalf("within the bound: %v", err)
+	}
+	// Past the stream bound (set tight here; SetLimit adds a margin of
+	// 64 MiB for headers), header-only members fail too.
+	rd, err := NewReader(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rd.src.max = 64 << 10
+	p, err := rd.Next()
+	if err == nil {
+		_, err = rd.WriteTo(p, io.Discard)
+	}
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("2000 headers past a 64 KiB bound: %v", err)
+	}
+	if rd, err := NewLimitedReader(bytes.NewReader(b), 1<<20); err != nil || rd.src.max != 2<<20+64<<20 {
+		t.Fatalf("limited reader: %v", err)
+	}
+
+	raw := transferTar(t, member{name: ManifestName, typ: tar.TypeReg, data: mustJSON(t, m)}, member{name: "project/", typ: tar.TypeDir})
+	tail := append(append([]byte{}, raw...), make([]byte, maxTrailing+1024)...)
+	if err := readAll(tail); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("data after the end: %v", err)
+	}
+	if err := readAll(append(append([]byte{}, raw...), make([]byte, 10240)...)); err != nil {
+		t.Fatalf("record padding: %v", err)
+	}
+}
+
+func itoa(i int) string { return strconv.Itoa(i) }
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func TestPinnedName(t *testing.T) {
@@ -340,9 +402,10 @@ func TestPinnedName(t *testing.T) {
 		{map[string][]byte{"compose.yaml": []byte("name: ${COMPOSE_PROJECT_NAME}\n")}, ""},
 		{map[string][]byte{"compose.yaml": []byte("services:\n  web:\n    name: nested\n")}, ""},
 		{map[string][]byte{"compose.yaml": []byte(": not yaml [")}, ""},
-		{map[string][]byte{"a.yaml": []byte("services: {}\n"), "b.yaml": []byte("name: pinned\n")}, "pinned"},
+		{map[string][]byte{"compose.yaml": []byte("name: base\n"), "compose.override.yaml": []byte("name: pinned\n")}, "pinned"},
+		{map[string][]byte{"compose.yaml": []byte("services: {}\n"), "compose.bak.yaml": []byte("name: never\n")}, ""},
 	} {
-		if got := PinnedName(c.files); got != c.want {
+		if got := PinnedName(c.files, nil); got != c.want {
 			t.Errorf("PinnedName(%v) = %q, want %q", c.files, got, c.want)
 		}
 	}

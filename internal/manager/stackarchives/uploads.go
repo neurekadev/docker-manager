@@ -287,11 +287,10 @@ func (e *writeErr) Write(p []byte) (int, error) {
 // inspect reads a whole archive and measures its parts; limit bounds the
 // bytes of their files.
 func inspect(r io.Reader, limit int64) (Upload, error) {
-	rd, err := NewReader(r)
+	rd, err := NewLimitedReader(r, limit)
 	if err != nil {
 		return Upload{}, err
 	}
-	rd.SetLimit(limit)
 	u := Upload{Manifest: rd.Manifest(), Volumes: map[string]PartStats{}}
 	for {
 		p, err := rd.Next()
@@ -314,8 +313,8 @@ func inspect(r io.Reader, limit int64) (Upload, error) {
 	if err := rd.Close(); err != nil {
 		return Upload{}, err
 	}
-	u.PinnedName = PinnedName(rd.ComposeFiles())
-	u.NamedVolumes = ExplicitVolumeNames(rd.ComposeFiles())
+	u.PinnedName = PinnedName(rd.ComposeFiles(), u.Manifest.Stack.ConfigFiles)
+	u.NamedVolumes = ExplicitVolumeNames(rd.ComposeFiles(), u.Manifest.Stack.ConfigFiles)
 	return u, nil
 }
 

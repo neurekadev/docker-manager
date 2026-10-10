@@ -465,8 +465,26 @@ func (h *stackArchivesAPI) requireCreateAnywhere(ctx context.Context) (authz.Pri
 // archiveBodyKey carries the raw request body of the upload.
 type archiveBodyKey struct{}
 
+// archiveIdle is how long an upload may send nothing before it is cut:
+// an upload claims its size of the manager's free space while it runs.
+const archiveIdle = 2 * time.Minute
+
 func archiveBody(ctx huma.Context, next func(huma.Context)) {
-	next(huma.WithValue(ctx, archiveBodyKey{}, ctx.BodyReader()))
+	body := &idleReader{r: ctx.BodyReader(), deadline: ctx.SetReadDeadline}
+	defer func() { _ = ctx.SetReadDeadline(time.Time{}) }()
+	next(huma.WithValue(ctx, archiveBodyKey{}, io.Reader(body)))
+}
+
+// idleReader renews the connection's read deadline before every read, so
+// a stalled body fails instead of holding its claim forever.
+type idleReader struct {
+	r        io.Reader
+	deadline func(time.Time) error
+}
+
+func (i *idleReader) Read(p []byte) (int, error) {
+	_ = i.deadline(time.Now().Add(archiveIdle)) // network deadline: wall clock by design
+	return i.r.Read(p)
 }
 
 func (h *stackArchivesAPI) upload(ctx context.Context, in *stackArchiveUploadInput) (*stackArchiveOutput, error) {

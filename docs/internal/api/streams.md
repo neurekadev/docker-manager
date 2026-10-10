@@ -538,7 +538,8 @@ snapshot contents can hold secrets).
   `DOCKER_MANAGER_STACK_ARCHIVE_MAX_MB`). The manager writes it to its data
   directory while validating it (manifest first, the parts in order, member
   names and types; 422 `invalid_stack_archive` keeps nothing) and answers 201
-  with what the archive holds; a short body is 400 `upload_incomplete`. No
+  with what the archive holds; a short body, or one that sends nothing for
+  2 minutes, is 400 `upload_incomplete`. No
   Idempotency-Key (the body is never buffered). The proxy's body limit must
   allow the archive's size.
 

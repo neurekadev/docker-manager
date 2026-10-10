@@ -912,11 +912,13 @@ func (s *Service) onImportFinished(ctx context.Context, db bun.IDB, j domain.Job
 	if err := json.Unmarshal(j.Input, &in); err != nil || in.StackID == "" {
 		return nil //nolint:nilerr // malformed input: nothing to follow
 	}
-	s.release(in.ArchiveID)
 	out := readImportOutput(j.ResultOutput)
 	if j.State == domain.JobSucceeded || out.Kept {
+		// Removed before the claim ends: no other stack starts from it.
 		s.removeUpload(in.ArchiveID)
+		s.release(in.ArchiveID)
 		return nil
 	}
+	s.release(in.ArchiveID)
 	return s.opts.Stacks.ForgetArchiveStack(ctx, db, in.StackID, j)
 }

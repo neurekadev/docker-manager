@@ -337,8 +337,9 @@ type Reader struct {
 	src *countedReader
 	// limit bounds the bytes of the archive's files (0: none; SetLimit);
 	// total counts them.
-	limit int64
-	total int64
+	limit   int64
+	total   int64
+	entries int64
 }
 
 // countedReader counts the decompressed bytes and refuses more than max
@@ -392,7 +393,11 @@ func (r *Reader) wantsCompose(p Part, inner string, size int64) bool {
 
 // NewReader opens an archive (gzip-compressed or a plain tar) and reads
 // and validates its manifest.
-func NewReader(r io.Reader) (*Reader, error) {
+func NewReader(r io.Reader) (*Reader, error) { return NewLimitedReader(r, 0) }
+
+// NewLimitedReader is NewReader bounded by limit from the first byte (see
+// SetLimit; 0: no bound).
+func NewLimitedReader(r io.Reader, limit int64) (*Reader, error) {
 	br := bufio.NewReader(r)
 	var src io.Reader = br
 	if magic, err := br.Peek(2); err == nil && magic[0] == 0x1f && magic[1] == 0x8b {
@@ -404,6 +409,9 @@ func NewReader(r io.Reader) (*Reader, error) {
 	}
 	cnt := &countedReader{r: src}
 	rd := &Reader{tr: tar.NewReader(cnt), src: cnt, seen: map[string]bool{}, compose: map[string][]byte{}}
+	if limit > 0 {
+		rd.SetLimit(limit)
+	}
 	if err := rd.advance(); err != nil {
 		return nil, err
 	}
@@ -527,15 +535,20 @@ func (r *Reader) Next() (Part, error) {
 	return p, nil
 }
 
+// MaxEntries bounds the members of an archive (the agents' transfer
+// bound).
+const MaxEntries = 20_000_000
+
 // WriteTo writes the current part to w as a transfer tar (root "./"
 // first, names relative to it) and stops at the next part. It validates
 // what the agents' extraction relies on before anything reaches them:
-// names below the part, hard links to earlier regular files of the same
-// part, supported member types.
+// names below the part, hard links to names of the same part, supported
+// member types. It keeps no per-member state (an archive of millions of
+// files costs no memory): that a hard link names an earlier regular file
+// is the agents' extraction's check (ExtractTree).
 func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 	var st PartStats
 	tw := tar.NewWriter(w)
-	regular := map[string]bool{}
 	for r.pending != nil {
 		cur, inner, ok := partOf(r.pendName)
 		if !ok || cur != p {
@@ -557,17 +570,16 @@ func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 		case tar.TypeDir, tar.TypeSymlink, tar.TypeFifo:
 		case tar.TypeReg, tar.TypeRegA: //nolint:staticcheck // TypeRegA from older tools
 			out.Typeflag = tar.TypeReg
-			regular[inner] = true
 		case tar.TypeLink:
 			target, tinner, ok := "", "", false
 			if t, valid := cleanName(hdr.Linkname); valid {
 				var tp Part
 				tp, tinner, ok = partOf(t)
-				ok = ok && tp == p && regular[tinner]
+				ok = ok && tp == p && tinner != ""
 				target = t
 			}
 			if !ok {
-				return st, invalidf("hard link %s must point to an earlier file of %s (%q)", r.pendName, p.prefix(), target)
+				return st, invalidf("hard link %s must point to a file of %s (%q)", r.pendName, p.prefix(), target)
 			}
 			out.Linkname = tinner
 		default:
@@ -580,6 +592,9 @@ func (r *Reader) WriteTo(p Part, w io.Writer) (PartStats, error) {
 			return st, err
 		}
 		st.Entries++
+		if r.entries++; r.entries > MaxEntries {
+			return st, invalidf("the archive has more than %d members", MaxEntries)
+		}
 		if out.Typeflag == tar.TypeReg {
 			if r.total += hdr.Size; r.limit > 0 && r.total > r.limit {
 				return st, invalidf("the archive unpacks to more than %d bytes", r.limit)
@@ -616,40 +631,67 @@ func invalidOrWrite(err error) error {
 	return err
 }
 
-// PinnedName returns the project name a Compose file pins with a
-// top-level name: ("" when none does, or only through interpolation).
-func PinnedName(files map[string][]byte) string {
-	names := make([]string, 0, len(files))
-	for n := range files {
-		names = append(names, n)
+// Compose's default files: the first base file present, then the first
+// override present.
+var (
+	defaultComposeFiles  = []string{"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"}
+	defaultOverrideFiles = []string{"compose.override.yaml", "compose.override.yml", "docker-compose.override.yaml", "docker-compose.override.yml"}
+)
+
+// LoadedComposeFiles orders the files Compose loads from the root files
+// read: the stack's configured ones, or the defaults (base, override);
+// later files override earlier ones.
+func LoadedComposeFiles(files map[string][]byte, configFiles []string) []string {
+	if len(configFiles) > 0 {
+		var out []string
+		for _, f := range configFiles {
+			if _, ok := files[f]; ok {
+				out = append(out, f)
+			}
+		}
+		return out
 	}
-	slices.Sort(names)
-	for _, n := range names {
+	var out []string
+	for _, group := range [][]string{defaultComposeFiles, defaultOverrideFiles} {
+		for _, f := range group {
+			if _, ok := files[f]; ok {
+				out = append(out, f)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// PinnedName returns the project name the loaded Compose files pin with a
+// top-level name: ("" when none does, or only through interpolation; the
+// last file setting it wins).
+func PinnedName(files map[string][]byte, configFiles []string) string {
+	pinned := ""
+	for _, n := range LoadedComposeFiles(files, configFiles) {
 		var doc yaml.Node
 		if err := yaml.Unmarshal(files[n], &doc); err != nil || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
 			continue
 		}
 		top := doc.Content[0]
 		for i := 0; i+1 < len(top.Content); i += 2 {
-			if v := top.Content[i+1]; top.Content[i].Value == "name" && v.Kind == yaml.ScalarNode && !strings.Contains(v.Value, "$") {
-				return v.Value
+			if v := top.Content[i+1]; top.Content[i].Value == "name" && v.Kind == yaml.ScalarNode {
+				pinned = v.Value
+				if strings.Contains(v.Value, "$") {
+					pinned = ""
+				}
 			}
 		}
 	}
-	return ""
+	return pinned
 }
 
 // ExplicitVolumeNames returns the volumes the Compose files name
 // themselves (top-level volumes.<key>.name:, without interpolation), by
 // key: they keep their name under any project name.
-func ExplicitVolumeNames(files map[string][]byte) map[string]string {
+func ExplicitVolumeNames(files map[string][]byte, configFiles []string) map[string]string {
 	out := map[string]string{}
-	names := make([]string, 0, len(files))
-	for n := range files {
-		names = append(names, n)
-	}
-	slices.Sort(names)
-	for _, n := range names {
+	for _, n := range LoadedComposeFiles(files, configFiles) {
 		var doc yaml.Node
 		if err := yaml.Unmarshal(files[n], &doc); err != nil || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
 			continue
@@ -666,9 +708,12 @@ func ExplicitVolumeNames(files map[string][]byte) map[string]string {
 					continue
 				}
 				for k := 0; k+1 < len(def.Content); k += 2 {
-					if v := def.Content[k+1]; def.Content[k].Value == "name" && v.Kind == yaml.ScalarNode && v.Value != "" &&
-						!strings.Contains(v.Value, "$") {
-						out[key] = v.Value
+					if v := def.Content[k+1]; def.Content[k].Value == "name" && v.Kind == yaml.ScalarNode {
+						if protocol.ValidDockerName(v.Value) && !strings.Contains(v.Value, "$") {
+							out[key] = v.Value
+						} else {
+							delete(out, key)
+						}
 					}
 				}
 			}

@@ -510,3 +510,31 @@ func TestImportKeepsExplicitVolumeNames(t *testing.T) {
 		t.Error("a volume under the derived name was created")
 	}
 }
+
+// TestUploadEvictionIsSafe: at the limit a refused upload discards
+// nothing, and an upload set aside to make room is neither discarded nor
+// used meanwhile.
+func TestUploadEvictionIsSafe(t *testing.T) {
+	w := newWorld(t)
+	f := w.export(ExportRequest{})
+	var ids []string
+	for range MaxUploadsPerUser {
+		w.clk.Advance(time.Second)
+		ids = append(ids, w.upload(f).ID)
+	}
+	if _, err := w.svc.StoreUpload(w.ctx, w.user, 10, bytes.NewReader([]byte("not a tar!"))); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("garbage: %v", err)
+	}
+	if got := len(w.svc.Uploads(w.user)); got != MaxUploadsPerUser {
+		t.Fatalf("%d uploads after a refused one, want %d", got, MaxUploadsPerUser)
+	}
+	w.svc.mu.Lock()
+	w.svc.evicting[ids[0]] = true
+	w.svc.mu.Unlock()
+	if err := w.svc.DeleteUpload(w.user, ids[0]); !errors.Is(err, ErrUploadInUse) {
+		t.Errorf("discarding an upload being evicted: %v", err)
+	}
+	if _, _, err := w.svc.StartImport(w.ctx, w.user, ids[0], ImportRequest{EnvironmentID: dstEnv, Name: "shop"}); !errors.Is(err, ErrUploadInUse) {
+		t.Errorf("creating a stack from an upload being evicted: %v", err)
+	}
+}
